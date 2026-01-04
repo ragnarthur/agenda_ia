@@ -1,0 +1,11 @@
+from django.apps import AppConfig
+
+
+class AgendaConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.agenda"
+    verbose_name = "Agenda"
+
+    def ready(self):
+        # Importa signals para registrar os receivers
+        import apps.agenda.signals  # noqa: F401

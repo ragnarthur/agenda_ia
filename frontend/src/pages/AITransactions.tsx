@@ -1,0 +1,367 @@
+import { useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { aiApi, financeApi } from "../lib/api"
+import { formatCurrency, getCategoryDotStyle } from "../lib/utils"
+import type { TransactionProposal } from "../types"
+import { Button } from "../components/ui/button"
+import { Input } from "../components/ui/input"
+import { Label } from "../components/ui/label"
+import { Badge } from "../components/ui/badge"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "../components/ui/alert"
+import {
+  Sparkles,
+  Send,
+  Check,
+  X,
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  ClipboardList,
+} from "lucide-react"
+
+export function AITransactionsPage() {
+  const [inputText, setInputText] = useState("")
+  const [proposal, setProposal] = useState<TransactionProposal | null>(null)
+  const [tokensUsed, setTokensUsed] = useState(0)
+  const [requestsRemaining, setRequestsRemaining] = useState(0)
+  const queryClient = useQueryClient()
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => financeApi.getCategories(),
+  })
+
+  const { data: accounts } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => financeApi.getAccounts(),
+  })
+
+  const categoryByName = useMemo(() => {
+    const entries = categories?.results ?? []
+    return new Map(
+      entries.map((category) => [category.name.toLowerCase(), category])
+    )
+  }, [categories])
+
+  const parseMutation = useMutation({
+    mutationFn: (text: string) => aiApi.parseTransaction(text),
+    onSuccess: (data) => {
+      setProposal(data.proposal)
+      setTokensUsed(data.usage.tokens_used)
+      setRequestsRemaining(data.usage.requests_remaining)
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: (data: {
+      transaction_type: "INCOME" | "EXPENSE"
+      amount: number
+      date: string
+      description: string
+      category?: number
+      account?: number
+    }) => financeApi.createTransaction(data),
+    onSuccess: () => {
+      setProposal(null)
+      setInputText("")
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
+    },
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (inputText.trim()) {
+      parseMutation.mutate(inputText.trim())
+    }
+  }
+
+  const handleConfirm = () => {
+    if (!proposal) return
+
+    const category = categories?.results.find(
+      (c) => c.name.toLowerCase() === proposal.category_suggestion?.toLowerCase()
+    )
+    const account = accounts?.results.find(
+      (a) =>
+        a.name.toLowerCase() === proposal.account_suggestion?.toLowerCase() ||
+        a.account_type === proposal.account_suggestion
+    )
+
+    saveMutation.mutate({
+      transaction_type: proposal.type,
+      amount: proposal.amount,
+      date: proposal.date,
+      description: proposal.description,
+      category: category?.id,
+      account: account?.id,
+    })
+  }
+
+  const handleCancel = () => {
+    setProposal(null)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+          Copiloto
+        </p>
+        <h1 className="text-3xl font-semibold">IA Copiloto</h1>
+        <p className="text-muted-foreground">
+          Transforme texto em transações prontas para confirmar.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card/80 to-card p-6">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-emerald-500/20">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Nova transação com IA</h3>
+            <p className="text-xs text-muted-foreground">
+              Descreva a movimentação como você falaria no dia a dia
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Descrição</Label>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                placeholder="Ex: recebi 500 de cachê no show de sábado"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                disabled={parseMutation.isPending}
+                className="h-11 flex-1 border-border/50 bg-background/50"
+              />
+              <Button
+                type="submit"
+                disabled={!inputText.trim() || parseMutation.isPending}
+                className="h-11 bg-gradient-to-r from-primary to-emerald-400 text-primary-foreground"
+              >
+                {parseMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {parseMutation.isError && (
+            <Alert variant="destructive">
+              <AlertTitle>Não foi possível analisar</AlertTitle>
+              <AlertDescription>
+                {(parseMutation.error as any)?.response?.data?.error ||
+                  "Erro ao processar transação"}
+              </AlertDescription>
+            </Alert>
+          )}
+        </form>
+      </div>
+
+      {proposal && (() => {
+        const isIncome = proposal.type === "INCOME"
+        const proposalTheme = isIncome
+          ? {
+              panel: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-card/80 to-card",
+              icon: "bg-emerald-500/15 text-emerald-400",
+              badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+              text: "text-emerald-400",
+            }
+          : {
+              panel: "border-red-500/20 bg-gradient-to-br from-red-500/5 via-card/80 to-card",
+              icon: "bg-red-500/15 text-red-400",
+              badge: "border-red-500/30 bg-red-500/10 text-red-400",
+              text: "text-red-400",
+            }
+
+        const categoryInfo = proposal.category_suggestion
+          ? categoryByName.get(proposal.category_suggestion.toLowerCase())
+          : undefined
+
+        return (
+          <div className={`rounded-2xl border ${proposalTheme.panel} p-6`}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${proposalTheme.icon}`}>
+                  {isIncome ? (
+                    <TrendingUp className="h-5 w-5" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-semibold">Proposta de transação</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Revise os detalhes antes de confirmar
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className={proposalTheme.badge}>
+                Confiança {(proposal.confidence * 100).toFixed(0)}%
+              </Badge>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Tipo
+                </Label>
+                <p className={`mt-2 text-lg font-semibold ${proposalTheme.text}`}>
+                  {isIncome ? "Receita" : "Despesa"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Valor
+                </Label>
+                <p className="mt-2 text-xl font-semibold">
+                  {formatCurrency(proposal.amount)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Data
+                </Label>
+                <p className="mt-2 font-medium">{proposal.date}</p>
+              </div>
+              <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Descrição
+                </Label>
+                <p className="mt-2 font-medium">{proposal.description}</p>
+              </div>
+              {proposal.category_suggestion && (
+                <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Categoria sugerida
+                  </Label>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={getCategoryDotStyle(categoryInfo?.color)}
+                    />
+                    <span className="font-medium">
+                      {proposal.category_suggestion}
+                    </span>
+                    {categoryInfo?.group && (
+                      <Badge
+                        variant="outline"
+                        className="border-muted-foreground/20 bg-muted/20 text-xs"
+                      >
+                        {categoryInfo.group}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+              {proposal.account_suggestion && (
+                <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Conta sugerida
+                  </Label>
+                  <p className="mt-2 font-medium">{proposal.account_suggestion}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button
+                onClick={handleConfirm}
+                disabled={saveMutation.isPending}
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-primary-foreground"
+              >
+                {saveMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Confirmar e salvar
+              </Button>
+              <Button
+                onClick={handleCancel}
+                variant="outline"
+                disabled={saveMutation.isPending}
+                className="border-border/50"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancelar
+              </Button>
+            </div>
+
+            {saveMutation.isError && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertTitle>Falha ao salvar</AlertTitle>
+                <AlertDescription>
+                  {(saveMutation.error as any)?.response?.data?.error ||
+                    "Erro ao salvar transação"}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {saveMutation.isSuccess && (
+              <Alert variant="success" className="mt-4">
+                <AlertTitle>Transação salva</AlertTitle>
+                <AlertDescription>
+                  Transação salva com sucesso!
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )
+      })()}
+
+      {tokensUsed > 0 && (
+        <div className="rounded-xl border border-border/60 bg-muted/10 p-4 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span>
+              Última requisição: {tokensUsed} tokens | Requisições restantes: {" "}
+              {requestsRemaining}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-sm">
+        <div className="flex items-center gap-3 border-b border-border/40 p-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15">
+            <ClipboardList className="h-5 w-5 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Exemplos de comandos</h3>
+            <p className="text-xs text-muted-foreground">
+              Frases que funcionam bem no copiloto
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 p-5 text-sm text-muted-foreground sm:grid-cols-2">
+          {[
+            '"paguei 38,90 em cordas hoje no pix"',
+            '"recebi 500 de cachê do show de sábado"',
+            '"gastei 150 no mercado ontem no cartão"',
+            '"salário de 2500 caiu hoje"',
+            '"uber de 25 reais ontem"',
+            '"pix de 120 da aula de violão"',
+          ].map((example) => (
+            <div
+              key={example}
+              className="rounded-xl border border-border/40 bg-muted/5 px-4 py-2"
+            >
+              {example}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
