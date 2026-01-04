@@ -967,10 +967,10 @@ def chat_conversations(request):
     return Response(data)
 
 
-@api_view(["GET"])
+@api_view(["GET", "DELETE"])
 @permission_classes([IsAuthenticated])
 def chat_conversation_detail(request, conversation_id: int):
-    """Retorna mensagens de uma conversa."""
+    """Retorna ou exclui uma conversa."""
     conversation = ChatConversation.objects.filter(
         user=request.user, id=conversation_id
     ).first()
@@ -979,6 +979,10 @@ def chat_conversation_detail(request, conversation_id: int):
             {"error": "Conversa não encontrada."},
             status=status.HTTP_404_NOT_FOUND,
         )
+
+    if request.method == "DELETE":
+        conversation.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     messages = conversation.messages.order_by("created_at")
     return Response(
