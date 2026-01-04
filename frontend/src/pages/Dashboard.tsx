@@ -110,7 +110,7 @@ export function DashboardPage() {
     if (!transactions?.results) return []
     const grouped = transactions.results.reduce(
       (acc, tx) => {
-        const day = format(new Date(tx.date + "T12:00:00"), "dd")
+        const day = format(new Date(tx.date + "T12:00:00"), "dd/MM")
         if (!acc[day]) acc[day] = { day, income: 0, expenses: 0 }
         if (tx.transaction_type === "INCOME") {
           acc[day].income += parseFloat(tx.amount)

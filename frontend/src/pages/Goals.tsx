@@ -16,6 +16,13 @@ import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
 import { Badge } from "../components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select"
 import { Progress } from "../components/ui/progress"
 import { Skeleton } from "../components/ui/skeleton"
 import {
@@ -64,6 +71,8 @@ export function GoalsPage() {
   const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
   const [dateError, setDateError] = useState("")
   const [contributionErrors, setContributionErrors] = useState<Record<number, string>>({})
+  const selectTriggerClasses =
+    "h-11 w-full border-border/50 bg-background/50 focus:border-emerald-500/50 focus:ring-emerald-500/20"
   const [formData, setFormData] = useState({
     name: "",
     goal_type: "SAVINGS",
@@ -249,22 +258,26 @@ export function GoalsPage() {
 
           <div className="space-y-2">
             <Label className="text-muted-foreground">Tipo</Label>
-            <select
-              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            <Select
               value={formData.goal_type}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 setFormData((prev) => ({
                   ...prev,
-                  goal_type: e.target.value,
+                  goal_type: value,
                 }))
               }
             >
-              {Object.entries(goalTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={selectTriggerClasses}>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(goalTypeLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -409,7 +422,7 @@ export function GoalsPage() {
                           </div>
                           <p className="mt-1 text-sm text-muted-foreground">
                             {goalTypeLabels[goal.goal_type]}
-                            {goal.target_date && ` • Meta: ${goal.target_date}`}
+                            {goal.target_date && ` • Meta: ${formatDate(goal.target_date)}`}
                           </p>
                         </div>
                       </div>

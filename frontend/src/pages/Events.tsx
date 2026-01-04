@@ -81,10 +81,7 @@ const statusStyles: Record<string, string> = {
   CANCELADO: "border-red-500/30 bg-red-500/10 text-red-400",
 }
 
-const selectTriggerClasses =
-  "h-11 border-border/70 bg-[hsl(var(--card))] text-foreground shadow-sm"
-const selectContentClasses =
-  "border-border/80 bg-[hsl(var(--popover))] shadow-2xl"
+const selectTriggerClasses = "h-11 shadow-sm"
 
 export function EventsPage() {
   const [monthFilter, setMonthFilter] = useState(format(new Date(), "yyyy-MM"))
@@ -348,7 +345,7 @@ export function EventsPage() {
               <SelectTrigger className={selectTriggerClasses}>
                 <SelectValue className="text-foreground" placeholder="Selecione o tipo" />
               </SelectTrigger>
-              <SelectContent className={selectContentClasses}>
+              <SelectContent>
                 <SelectItem value="AULA">Aula</SelectItem>
                 <SelectItem value="SHOW">Show</SelectItem>
                 <SelectItem value="FREELA">Freela</SelectItem>
@@ -377,7 +374,7 @@ export function EventsPage() {
               <SelectTrigger className={selectTriggerClasses}>
                 <SelectValue className="text-foreground" placeholder="Selecione o status" />
               </SelectTrigger>
-              <SelectContent className={selectContentClasses}>
+              <SelectContent>
                 <SelectItem value="PENDENTE">Pendente</SelectItem>
                 <SelectItem value="PAGO">Pago</SelectItem>
                 <SelectItem value="CANCELADO">Cancelado</SelectItem>
@@ -776,7 +773,7 @@ export function EventsPage() {
                 <SelectTrigger className={selectTriggerClasses}>
                   <SelectValue className="text-foreground" placeholder="Selecione o tipo" />
                 </SelectTrigger>
-                <SelectContent className={selectContentClasses}>
+                <SelectContent>
                   <SelectItem value="AULA">Aula</SelectItem>
                   <SelectItem value="SHOW">Show</SelectItem>
                   <SelectItem value="FREELA">Freela</SelectItem>
@@ -805,7 +802,7 @@ export function EventsPage() {
                 <SelectTrigger className={selectTriggerClasses}>
                   <SelectValue className="text-foreground" placeholder="Selecione o status" />
                 </SelectTrigger>
-                <SelectContent className={selectContentClasses}>
+                <SelectContent>
                   <SelectItem value="PENDENTE">Pendente</SelectItem>
                   <SelectItem value="PAGO">Pago</SelectItem>
                   <SelectItem value="CANCELADO">Cancelado</SelectItem>

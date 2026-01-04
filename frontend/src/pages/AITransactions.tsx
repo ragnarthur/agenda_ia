@@ -1,12 +1,19 @@
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { aiApi, financeApi } from "../lib/api"
-import { formatCurrency, getCategoryDotStyle } from "../lib/utils"
+import { formatCurrency, formatDate, getCategoryDotStyle } from "../lib/utils"
 import type { TransactionProposal } from "../types"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
 import { Badge } from "../components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select"
 import {
   Alert,
   AlertDescription,
@@ -26,6 +33,7 @@ import {
 export function AITransactionsPage() {
   const [inputText, setInputText] = useState("")
   const [proposal, setProposal] = useState<TransactionProposal | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [tokensUsed, setTokensUsed] = useState(0)
   const [requestsRemaining, setRequestsRemaining] = useState(0)
   const queryClient = useQueryClient()
@@ -40,12 +48,17 @@ export function AITransactionsPage() {
     queryFn: () => financeApi.getAccounts(),
   })
 
-  const categoryByName = useMemo(() => {
-    const entries = categories?.results ?? []
-    return new Map(
-      entries.map((category) => [category.name.toLowerCase(), category])
-    )
-  }, [categories])
+  // Set initial category when proposal changes
+  useEffect(() => {
+    if (proposal?.category_suggestion && categories?.results) {
+      const matched = categories.results.find(
+        (c) => c.name.toLowerCase() === proposal.category_suggestion?.toLowerCase()
+      )
+      setSelectedCategoryId(matched ? String(matched.id) : null)
+    } else {
+      setSelectedCategoryId(null)
+    }
+  }, [proposal, categories])
 
   const parseMutation = useMutation({
     mutationFn: (text: string) => aiApi.parseTransaction(text),
@@ -83,9 +96,6 @@ export function AITransactionsPage() {
   const handleConfirm = () => {
     if (!proposal) return
 
-    const category = categories?.results.find(
-      (c) => c.name.toLowerCase() === proposal.category_suggestion?.toLowerCase()
-    )
     const account = accounts?.results.find(
       (a) =>
         a.name.toLowerCase() === proposal.account_suggestion?.toLowerCase() ||
@@ -97,7 +107,7 @@ export function AITransactionsPage() {
       amount: proposal.amount,
       date: proposal.date,
       description: proposal.description,
-      category: category?.id,
+      category: selectedCategoryId ? Number(selectedCategoryId) : undefined,
       account: account?.id,
     })
   }
@@ -184,10 +194,6 @@ export function AITransactionsPage() {
               text: "text-red-400",
             }
 
-        const categoryInfo = proposal.category_suggestion
-          ? categoryByName.get(proposal.category_suggestion.toLowerCase())
-          : undefined
-
         return (
           <div className={`rounded-2xl border ${proposalTheme.panel} p-6`}>
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -232,7 +238,7 @@ export function AITransactionsPage() {
                 <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                   Data
                 </Label>
-                <p className="mt-2 font-medium">{proposal.date}</p>
+                <p className="mt-2 font-medium">{formatDate(proposal.date)}</p>
               </div>
               <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
                 <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
@@ -240,30 +246,66 @@ export function AITransactionsPage() {
                 </Label>
                 <p className="mt-2 font-medium">{proposal.description}</p>
               </div>
-              {proposal.category_suggestion && (
-                <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
-                  <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                    Categoria sugerida
-                  </Label>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={getCategoryDotStyle(categoryInfo?.color)}
-                    />
-                    <span className="font-medium">
-                      {proposal.category_suggestion}
-                    </span>
-                    {categoryInfo?.group && (
-                      <Badge
-                        variant="outline"
-                        className="border-muted-foreground/20 bg-muted/20 text-xs"
-                      >
-                        {categoryInfo.group}
-                      </Badge>
-                    )}
-                  </div>
+              <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  Categoria
+                </Label>
+                <div className="mt-2">
+                  <Select
+                    value={selectedCategoryId ?? ""}
+                    onValueChange={setSelectedCategoryId}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione uma categoria">
+                        {selectedCategoryId && (() => {
+                          const cat = categories?.results.find(c => String(c.id) === selectedCategoryId)
+                          return cat ? (
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={getCategoryDotStyle(cat.color)}
+                              />
+                              <span>{cat.name}</span>
+                            </div>
+                          ) : null
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories?.results.map((cat) => (
+                        <SelectItem key={cat.id} value={String(cat.id)}>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={getCategoryDotStyle(cat.color)}
+                            />
+                            <span>{cat.name}</span>
+                            {cat.group && (
+                              <span className="text-xs text-muted-foreground">
+                                ({cat.group})
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {proposal.category_suggestion && !selectedCategoryId && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Sugestão da IA: <span className="text-foreground">{proposal.category_suggestion}</span>
+                    </p>
+                  )}
+                  {proposal.category_suggestion && selectedCategoryId && (() => {
+                    const selectedCat = categories?.results.find(c => String(c.id) === selectedCategoryId)
+                    const isAiSuggestion = selectedCat?.name.toLowerCase() === proposal.category_suggestion?.toLowerCase()
+                    return !isAiSuggestion ? (
+                      <p className="mt-2 text-xs text-amber-400">
+                        Categoria alterada (sugestão IA: {proposal.category_suggestion})
+                      </p>
+                    ) : null
+                  })()}
                 </div>
-              )}
+              </div>
               {proposal.account_suggestion && (
                 <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
                   <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">

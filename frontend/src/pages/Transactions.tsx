@@ -20,6 +20,13 @@ import { Badge } from "../components/ui/badge"
 import { Button } from "../components/ui/button"
 import { Label } from "../components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -74,6 +81,9 @@ export function TransactionsPage() {
   const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
   const [dateError, setDateError] = useState("")
   const [editDateError, setEditDateError] = useState("")
+  const [createOpen, setCreateOpen] = useState(false)
+  const selectTriggerClasses =
+    "h-11 w-full border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20"
   const [createForm, setCreateForm] = useState<TransactionFormState>({
     transaction_type: "EXPENSE",
     amount: "",
@@ -147,20 +157,29 @@ export function TransactionsPage() {
     )
   }, [dateLimitLabel, editingTransaction])
 
+  const resetCreateForm = () => {
+    setCreateForm({
+      transaction_type: "EXPENSE",
+      amount: "",
+      date: today,
+      description: "",
+      category: "",
+      account: "",
+      tags: "",
+      notes: "",
+    })
+    setDateError("")
+  }
+
+  const handleCreateDialogChange = (open: boolean) => {
+    setCreateOpen(open)
+    resetCreateForm()
+  }
+
   const createTransactionMutation = useMutation({
     mutationFn: financeApi.createTransaction,
     onSuccess: () => {
-      setCreateForm({
-        transaction_type: "EXPENSE",
-        amount: "",
-        date: today,
-        description: "",
-        category: "",
-        account: "",
-        tags: "",
-        notes: "",
-      })
-      setDateError("")
+      handleCreateDialogChange(false)
       queryClient.invalidateQueries({ queryKey: ["transactions"] })
       queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
       queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
@@ -267,14 +286,24 @@ export function TransactionsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          Movimentos
-        </p>
-        <h1 className="text-3xl font-semibold">Transações</h1>
-        <p className="text-muted-foreground">
-          Histórico de receitas e despesas confirmadas.
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+            Movimentos
+          </p>
+          <h1 className="text-3xl font-semibold">Transações</h1>
+          <p className="text-muted-foreground">
+            Histórico de receitas e despesas confirmadas.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => handleCreateDialogChange(true)}
+          className="gap-2 self-start md:self-auto"
+        >
+          <Plus className="h-4 w-4" />
+          Nova transação
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -328,174 +357,172 @@ export function TransactionsPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card/80 to-card p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-            <Plus className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold">Nova transação</h3>
-            <p className="text-xs text-muted-foreground">
+      <Dialog
+        open={createOpen}
+        onOpenChange={handleCreateDialogChange}
+      >
+        <DialogContent className="max-w-5xl">
+          <DialogHeader className="border-b border-border/60 pb-4">
+            <DialogTitle>Nova transação</DialogTitle>
+            <DialogDescription>
               Registre manualmente uma movimentação.
-            </p>
-          </div>
-        </div>
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleCreateSubmit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Tipo</Label>
-            <select
-              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              value={createForm.transaction_type}
-              onChange={(event) => {
-                const nextType = event.target.value as TransactionFormState["transaction_type"]
-                setCreateForm((prev) => {
-                  const nextCategories = (categories?.results ?? []).filter(
-                    (category) => category.category_type === nextType
-                  )
-                  const validCategory = nextCategories.some(
-                    (category) => String(category.id) === prev.category
-                  )
-                  return {
-                    ...prev,
-                    transaction_type: nextType,
-                    category: validCategory ? prev.category : "",
+          <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 via-card/70 to-card/60 p-6 shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]">
+            <form onSubmit={handleCreateSubmit} className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Tipo <span className="text-emerald-300">*</span>
+                </Label>
+                <Select
+                  value={createForm.transaction_type}
+                  onValueChange={(value) => {
+                    const nextType = value as TransactionFormState["transaction_type"]
+                    setCreateForm((prev) => {
+                      const nextCategories = (categories?.results ?? []).filter(
+                        (category) => category.category_type === nextType
+                      )
+                      const validCategory = nextCategories.some(
+                        (category) => String(category.id) === prev.category
+                      )
+                      return {
+                        ...prev,
+                        transaction_type: nextType,
+                        category: validCategory ? prev.category : "",
+                      }
+                    })
+                  }}
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EXPENSE">Despesa</SelectItem>
+                    <SelectItem value="INCOME">Receita</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Valor <span className="text-emerald-300">*</span>
+                </Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="R$ 0,00"
+                  value={createForm.amount}
+                  onChange={(event) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      amount: formatCurrencyInput(event.target.value),
+                    }))
                   }
-                })
-              }}
-            >
-              <option value="EXPENSE">Despesa</option>
-              <option value="INCOME">Receita</option>
-            </select>
-          </div>
+                  className="h-11 border-border/50 bg-background/50"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Valor</Label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="R$ 0,00"
-              value={createForm.amount}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  amount: formatCurrencyInput(event.target.value),
-                }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Data <span className="text-emerald-300">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={createForm.date}
+                  onClick={(event) => openNativePicker(event.currentTarget)}
+                  onChange={(event) => {
+                    const nextDate = event.target.value
+                    setCreateForm((prev) => ({ ...prev, date: nextDate }))
+                    setDateError(
+                      isDateWithinLimit(nextDate)
+                        ? ""
+                        : `Data deve ser até ${dateLimitLabel}.`
+                    )
+                  }}
+                  max={maxDate}
+                  className="h-11 border-border/50 bg-background/50"
+                />
+                {dateError ? (
+                  <p className="text-xs text-red-400">{dateError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Data máxima permitida: {dateLimitLabel}.
+                  </p>
+                )}
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Data</Label>
-            <Input
-              type="date"
-              value={createForm.date}
-              onClick={(event) => openNativePicker(event.currentTarget)}
-              onChange={(event) => {
-                const nextDate = event.target.value
-                setCreateForm((prev) => ({ ...prev, date: nextDate }))
-                setDateError(
-                  isDateWithinLimit(nextDate)
-                    ? ""
-                    : `Data deve ser até ${dateLimitLabel}.`
-                )
-              }}
-              max={maxDate}
-              className="h-11 border-border/50 bg-background/50"
-            />
-            {dateError ? (
-              <p className="text-xs text-red-400">{dateError}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Data máxima permitida: {dateLimitLabel}.
-              </p>
-            )}
-          </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-muted-foreground">
+                  Descrição <span className="text-emerald-300">*</span>
+                </Label>
+                <Input
+                  value={createForm.description}
+                  onChange={(event) =>
+                    setCreateForm((prev) => ({ ...prev, description: event.target.value }))
+                  }
+                  className="h-11 border-border/50 bg-background/50"
+                  placeholder="Ex: Aluguel, Cachê do show, Compras"
+                />
+              </div>
 
-          <div className="space-y-2 lg:col-span-2">
-            <Label className="text-muted-foreground">Descrição</Label>
-            <Input
-              value={createForm.description}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, description: event.target.value }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-              placeholder="Ex: Aluguel, Cachê do show, Compras"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Categoria</Label>
+                <Select
+                  value={createForm.category || "none"}
+                  onValueChange={(value) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      category: value === "none" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue placeholder="Sem categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem categoria</SelectItem>
+                    {createCategories.map((category) => (
+                      <SelectItem key={category.id} value={String(category.id)}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Categoria</Label>
-            <select
-              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              value={createForm.category}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, category: event.target.value }))
-              }
-            >
-              <option value="">Sem categoria</option>
-              {createCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                <Label className="text-muted-foreground">Observações</Label>
+                <textarea
+                  value={createForm.notes}
+                  onChange={(event) =>
+                    setCreateForm((prev) => ({ ...prev, notes: event.target.value }))
+                  }
+                  className="min-h-[88px] w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Detalhes adicionais"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Conta</Label>
-            <select
-              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              value={createForm.account}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, account: event.target.value }))
-              }
-            >
-              <option value="">Sem conta</option>
-              {accounts?.results.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
+              <DialogFooter className="md:col-span-2 lg:col-span-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCreateDialogChange(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={createTransactionMutation.isPending}
+                  disabled={!createForm.description || !createForm.amount || !createForm.date}
+                >
+                  Salvar transação
+                </Button>
+              </DialogFooter>
+            </form>
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Tags</Label>
-            <Input
-              value={createForm.tags}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, tags: event.target.value }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-              placeholder="ex: fixo, transporte"
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2 lg:col-span-4">
-            <Label className="text-muted-foreground">Observações</Label>
-            <textarea
-              value={createForm.notes}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, notes: event.target.value }))
-              }
-              className="min-h-[88px] w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="Detalhes adicionais"
-            />
-          </div>
-
-          <div className="md:col-span-2 lg:col-span-4 flex justify-end">
-            <Button
-              type="submit"
-              isLoading={createTransactionMutation.isPending}
-              disabled={!createForm.description || !createForm.amount || !createForm.date}
-            >
-              Salvar transação
-            </Button>
-          </div>
-        </form>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters */}
       <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 p-5 backdrop-blur-sm">
@@ -687,11 +714,10 @@ export function TransactionsPage() {
           <form onSubmit={handleEditSubmit} className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-muted-foreground">Tipo</Label>
-              <select
-                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              <Select
                 value={editForm.transaction_type}
-                onChange={(event) => {
-                  const nextType = event.target.value as TransactionFormState["transaction_type"]
+                onValueChange={(value) => {
+                  const nextType = value as TransactionFormState["transaction_type"]
                   setEditForm((prev) => {
                     const nextCategories = (categories?.results ?? []).filter(
                       (category) => category.category_type === nextType
@@ -707,9 +733,14 @@ export function TransactionsPage() {
                   })
                 }}
               >
-                <option value="EXPENSE">Despesa</option>
-                <option value="INCOME">Receita</option>
-              </select>
+                <SelectTrigger className={selectTriggerClasses}>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EXPENSE">Despesa</SelectItem>
+                  <SelectItem value="INCOME">Receita</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -769,38 +800,52 @@ export function TransactionsPage() {
 
             <div className="space-y-2">
               <Label className="text-muted-foreground">Categoria</Label>
-              <select
-                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                value={editForm.category}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, category: event.target.value }))
+              <Select
+                value={editForm.category || "none"}
+                onValueChange={(value) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    category: value === "none" ? "" : value,
+                  }))
                 }
               >
-                <option value="">Sem categoria</option>
-                {editCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className={selectTriggerClasses}>
+                  <SelectValue placeholder="Sem categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem categoria</SelectItem>
+                  {editCategories.map((category) => (
+                    <SelectItem key={category.id} value={String(category.id)}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label className="text-muted-foreground">Conta</Label>
-              <select
-                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                value={editForm.account}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, account: event.target.value }))
+              <Select
+                value={editForm.account || "none"}
+                onValueChange={(value) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    account: value === "none" ? "" : value,
+                  }))
                 }
               >
-                <option value="">Sem conta</option>
-                {accounts?.results.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className={selectTriggerClasses}>
+                  <SelectValue placeholder="Sem conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem conta</SelectItem>
+                  {accounts?.results.map((account) => (
+                    <SelectItem key={account.id} value={String(account.id)}>
+                      {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2 md:col-span-2">

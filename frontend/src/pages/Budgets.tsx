@@ -8,8 +8,6 @@ import {
   formatCurrencyInput,
   parseCurrencyInput,
   formatDate,
-  getMaxAllowedDate,
-  isDateWithinLimit,
   openNativePicker,
 } from "../lib/utils"
 import { Button } from "../components/ui/button"
@@ -17,6 +15,21 @@ import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
 import { Badge } from "../components/ui/badge"
 import { Progress } from "../components/ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog"
 import { Skeleton } from "../components/ui/skeleton"
 import {
   AlertTriangle,
@@ -40,9 +53,12 @@ const periodLabels = {
 export function BudgetsPage() {
   const queryClient = useQueryClient()
   const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), [])
-  const maxDate = useMemo(() => getMaxAllowedDate(), [])
-  const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
+  const maxBudgetYear = 2099
+  const maxDate = useMemo(() => `${maxBudgetYear}-12-31`, [])
   const [dateError, setDateError] = useState("")
+  const [createOpen, setCreateOpen] = useState(false)
+  const selectTriggerClasses =
+    "h-11 w-full border-border/50 bg-background/50 focus:border-violet-500/50 focus:ring-violet-500/20"
   const [formData, setFormData] = useState({
     category: "",
     amount: "",
@@ -83,19 +99,37 @@ export function BudgetsPage() {
         end_date: formData.end_date || null,
       }),
     onSuccess: () => {
-      setFormData({
-        category: "",
-        amount: "",
-        period_type: "MONTHLY",
-        alert_threshold: "80",
-        start_date: today,
-        end_date: "",
-      })
-      setDateError("")
+      handleCreateDialogChange(false)
       queryClient.invalidateQueries({ queryKey: ["budgets"] })
       queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
     },
   })
+
+  const resetCreateForm = () => {
+    setFormData({
+      category: "",
+      amount: "",
+      period_type: "MONTHLY",
+      alert_threshold: "80",
+      start_date: today,
+      end_date: "",
+    })
+    setDateError("")
+  }
+
+  const handleCreateDialogChange = (open: boolean) => {
+    setCreateOpen(open)
+    if (!open) {
+      resetCreateForm()
+    }
+  }
+
+  const isBudgetDateValid = (value: string) => {
+    if (!value) return true
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+    const year = Number(value.slice(0, 4))
+    return year <= maxBudgetYear
+  }
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -103,10 +137,10 @@ export function BudgetsPage() {
       return
     }
     if (
-      !isDateWithinLimit(formData.start_date) ||
-      (formData.end_date && !isDateWithinLimit(formData.end_date))
+      !isBudgetDateValid(formData.start_date) ||
+      (formData.end_date && !isBudgetDateValid(formData.end_date))
     ) {
-      setDateError(`Datas devem ser até ${dateLimitLabel}.`)
+      setDateError(`Ano deve ser até ${maxBudgetYear}.`)
       return
     }
     createBudgetMutation.mutate()
@@ -127,14 +161,24 @@ export function BudgetsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          Planejamento
-        </p>
-        <h1 className="text-3xl font-semibold">Orçamentos</h1>
-        <p className="text-muted-foreground">
-          Defina limites e acompanhe seu consumo por categoria.
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+            Planejamento
+          </p>
+          <h1 className="text-3xl font-semibold">Orçamentos</h1>
+          <p className="text-muted-foreground">
+            Defina limites e acompanhe seu consumo por categoria.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => handleCreateDialogChange(true)}
+          className="gap-2 self-start bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600 md:self-auto"
+        >
+          <PlusCircle className="h-4 w-4" />
+          Novo Orçamento
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -188,172 +232,198 @@ export function BudgetsPage() {
         </div>
       </div>
 
-      {/* New Budget Form */}
-      <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/5 via-card/80 to-card p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
-            <PlusCircle className="h-5 w-5 text-violet-400" />
-          </div>
-          <div>
-            <h3 className="font-semibold">Novo Orçamento</h3>
-            <p className="text-xs text-muted-foreground">Defina um limite de gastos para uma categoria</p>
-          </div>
-        </div>
+      <Dialog open={createOpen} onOpenChange={handleCreateDialogChange}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader className="border-b border-border/60 pb-4">
+            <DialogTitle>Novo orçamento</DialogTitle>
+            <DialogDescription>
+              Defina um limite de gastos para uma categoria.
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Categoria</Label>
-            <select
-              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-              value={formData.category}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, category: e.target.value }))
-              }
-            >
-              <option value="">Selecione uma categoria</option>
-              {categories?.results.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name} {category.group ? `(${category.group})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Limite (R$)</Label>
-            <div className="relative">
-              <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="R$ 0,00"
-                value={formData.amount}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    amount: formatCurrencyInput(e.target.value),
-                  }))
-                }
-                className="h-11 border-border/50 bg-background/50 pl-10"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Período</Label>
-            <select
-              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-violet-500/50 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-              value={formData.period_type}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  period_type: e.target.value,
-                }))
-              }
-            >
-              {Object.entries(periodLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Alerta em (%)</Label>
-            <div className="relative">
-              <Percent className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={formData.alert_threshold}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    alert_threshold: e.target.value,
-                  }))
-                }
-                className="h-11 border-border/50 bg-background/50 pl-10"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Data Início</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="date"
-                value={formData.start_date}
-                onClick={(event) => openNativePicker(event.currentTarget)}
-                onChange={(e) => {
-                  const nextValues = {
-                    ...formData,
-                    start_date: e.target.value,
+          <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 via-card/70 to-card/60 p-6 shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]">
+            <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Categoria <span className="text-violet-300">*</span>
+                </Label>
+                <Select
+                  value={formData.category || "none"}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      category: value === "none" ? "" : value,
+                    }))
                   }
-                  setFormData(nextValues)
-                  setDateError(
-                    !isDateWithinLimit(nextValues.start_date) ||
-                      (nextValues.end_date &&
-                        !isDateWithinLimit(nextValues.end_date))
-                      ? `Datas devem ser até ${dateLimitLabel}.`
-                      : ""
-                  )
-                }}
-                max={maxDate}
-                className="h-11 border-border/50 bg-background/50 pl-10"
-              />
-            </div>
-          </div>
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecione uma categoria</SelectItem>
+                    {categories?.results.map((category) => (
+                      <SelectItem key={category.id} value={String(category.id)}>
+                        {category.name} {category.group ? `(${category.group})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Data Fim (opcional)</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="date"
-                value={formData.end_date}
-                onClick={(event) => openNativePicker(event.currentTarget)}
-                onChange={(e) => {
-                  const nextValues = {
-                    ...formData,
-                    end_date: e.target.value,
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Limite (R$) <span className="text-violet-300">*</span>
+                </Label>
+                <div className="relative">
+                  <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="R$ 0,00"
+                    value={formData.amount}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        amount: formatCurrencyInput(e.target.value),
+                      }))
+                    }
+                    className="h-11 border-border/50 bg-background/50 pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Período <span className="text-violet-300">*</span>
+                </Label>
+                <Select
+                  value={formData.period_type}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      period_type: value,
+                    }))
                   }
-                  setFormData(nextValues)
-                  setDateError(
-                    !isDateWithinLimit(nextValues.start_date) ||
-                      (nextValues.end_date &&
-                        !isDateWithinLimit(nextValues.end_date))
-                      ? `Datas devem ser até ${dateLimitLabel}.`
-                      : ""
-                  )
-                }}
-                max={maxDate}
-                className="h-11 border-border/50 bg-background/50 pl-10"
-              />
-              {dateError ? (
-                <p className="text-xs text-red-400">{dateError}</p>
-              ) : (
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue placeholder="Selecione o período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(periodLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Alerta em (%)</Label>
+                <div className="relative">
+                  <Percent className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.alert_threshold}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        alert_threshold: e.target.value,
+                      }))
+                    }
+                    className="h-11 border-border/50 bg-background/50 pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Data Início <span className="text-violet-300">*</span>
+                </Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="date"
+                    value={formData.start_date}
+                    onClick={(event) => openNativePicker(event.currentTarget)}
+                    onChange={(e) => {
+                      const nextValues = {
+                        ...formData,
+                        start_date: e.target.value,
+                      }
+                      setFormData(nextValues)
+                      setDateError(
+                        !isBudgetDateValid(nextValues.start_date) ||
+                          (nextValues.end_date &&
+                            !isBudgetDateValid(nextValues.end_date))
+                          ? `Ano deve ser até ${maxBudgetYear}.`
+                          : ""
+                      )
+                    }}
+                    max={maxDate}
+                    className="h-11 border-border/50 bg-background/50 pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Data Fim (opcional)</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="date"
+                    value={formData.end_date}
+                    onClick={(event) => openNativePicker(event.currentTarget)}
+                    onChange={(e) => {
+                      const nextValues = {
+                        ...formData,
+                        end_date: e.target.value,
+                      }
+                      setFormData(nextValues)
+                      setDateError(
+                        !isBudgetDateValid(nextValues.start_date) ||
+                          (nextValues.end_date &&
+                            !isBudgetDateValid(nextValues.end_date))
+                          ? `Ano deve ser até ${maxBudgetYear}.`
+                          : ""
+                      )
+                    }}
+                    max={maxDate}
+                    className="h-11 border-border/50 bg-background/50 pl-10"
+                  />
+                  {dateError ? (
+                    <p className="text-xs text-red-400">{dateError}</p>
+                  ) : (
                 <p className="text-xs text-muted-foreground">
-                  Datas máximas permitidas: {dateLimitLabel}.
+                  Ano máximo permitido: {maxBudgetYear}.
                 </p>
-              )}
-            </div>
-          </div>
+                  )}
+                </div>
+              </div>
 
-          <div className="md:col-span-3">
-            <Button
-              type="submit"
-              disabled={createBudgetMutation.isPending || !formData.category || !formData.amount}
-              className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {createBudgetMutation.isPending ? "Salvando..." : "Criar Orçamento"}
-            </Button>
+              <DialogFooter className="md:col-span-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCreateDialogChange(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createBudgetMutation.isPending || !formData.category || !formData.amount}
+                  className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  {createBudgetMutation.isPending ? "Salvando..." : "Criar Orçamento"}
+                </Button>
+              </DialogFooter>
+            </form>
           </div>
-        </form>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Budget Status */}
       <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-sm">
@@ -536,7 +606,9 @@ export function BudgetsPage() {
                           {category?.group && (
                             <span className="text-xs">{category.group}</span>
                           )}
-                          <span className="text-xs">• Início {budget.start_date}</span>
+                          <span className="text-xs">
+                            • Início {budget.start_date ? formatDate(budget.start_date) : "-"}
+                          </span>
                         </div>
                       </div>
                     </div>
