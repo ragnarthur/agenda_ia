@@ -123,6 +123,28 @@ export interface Goal {
   updated_at: string
 }
 
+export interface AgendaEvent {
+  id: number
+  title: string
+  event_type: "AULA" | "SHOW" | "FREELA" | "OUTRO"
+  event_type_display: string
+  start_datetime: string
+  end_datetime: string | null
+  location: string
+  expected_amount: string | null
+  actual_amount: string | null
+  status: "PENDENTE" | "PAGO" | "CANCELADO"
+  status_display: string
+  payment_date: string | null
+  client_name: string
+  auto_create_transaction: boolean
+  linked_transaction: number | null
+  linked_transaction_description: string | null
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
 // AI types
 export interface TransactionProposal {
   type: "INCOME" | "EXPENSE"

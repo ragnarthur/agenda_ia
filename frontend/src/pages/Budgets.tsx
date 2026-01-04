@@ -5,6 +5,12 @@ import { financeApi } from "../lib/api"
 import {
   formatCurrency,
   getCategoryDotStyle,
+  formatCurrencyInput,
+  parseCurrencyInput,
+  formatDate,
+  getMaxAllowedDate,
+  isDateWithinLimit,
+  openNativePicker,
 } from "../lib/utils"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
@@ -34,6 +40,9 @@ const periodLabels = {
 export function BudgetsPage() {
   const queryClient = useQueryClient()
   const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), [])
+  const maxDate = useMemo(() => getMaxAllowedDate(), [])
+  const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
+  const [dateError, setDateError] = useState("")
   const [formData, setFormData] = useState({
     category: "",
     amount: "",
@@ -67,7 +76,7 @@ export function BudgetsPage() {
     mutationFn: () =>
       financeApi.createBudget({
         category: Number(formData.category),
-        amount: formData.amount,
+        amount: parseCurrencyInput(formData.amount),
         period_type: formData.period_type as "WEEKLY" | "MONTHLY" | "YEARLY",
         alert_threshold: Number(formData.alert_threshold || 0),
         start_date: formData.start_date,
@@ -82,6 +91,7 @@ export function BudgetsPage() {
         start_date: today,
         end_date: "",
       })
+      setDateError("")
       queryClient.invalidateQueries({ queryKey: ["budgets"] })
       queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
     },
@@ -90,6 +100,13 @@ export function BudgetsPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!formData.category || !formData.amount) {
+      return
+    }
+    if (
+      !isDateWithinLimit(formData.start_date) ||
+      (formData.end_date && !isDateWithinLimit(formData.end_date))
+    ) {
+      setDateError(`Datas devem ser até ${dateLimitLabel}.`)
       return
     }
     createBudgetMutation.mutate()
@@ -207,13 +224,15 @@ export function BudgetsPage() {
             <div className="relative">
               <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0,00"
+                type="text"
+                inputMode="decimal"
+                placeholder="R$ 0,00"
                 value={formData.amount}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, amount: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    amount: formatCurrencyInput(e.target.value),
+                  }))
                 }
                 className="h-11 border-border/50 bg-background/50 pl-10"
               />
@@ -267,12 +286,22 @@ export function BudgetsPage() {
               <Input
                 type="date"
                 value={formData.start_date}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
+                onClick={(event) => openNativePicker(event.currentTarget)}
+                onChange={(e) => {
+                  const nextValues = {
+                    ...formData,
                     start_date: e.target.value,
-                  }))
-                }
+                  }
+                  setFormData(nextValues)
+                  setDateError(
+                    !isDateWithinLimit(nextValues.start_date) ||
+                      (nextValues.end_date &&
+                        !isDateWithinLimit(nextValues.end_date))
+                      ? `Datas devem ser até ${dateLimitLabel}.`
+                      : ""
+                  )
+                }}
+                max={maxDate}
                 className="h-11 border-border/50 bg-background/50 pl-10"
               />
             </div>
@@ -285,14 +314,31 @@ export function BudgetsPage() {
               <Input
                 type="date"
                 value={formData.end_date}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
+                onClick={(event) => openNativePicker(event.currentTarget)}
+                onChange={(e) => {
+                  const nextValues = {
+                    ...formData,
                     end_date: e.target.value,
-                  }))
-                }
+                  }
+                  setFormData(nextValues)
+                  setDateError(
+                    !isDateWithinLimit(nextValues.start_date) ||
+                      (nextValues.end_date &&
+                        !isDateWithinLimit(nextValues.end_date))
+                      ? `Datas devem ser até ${dateLimitLabel}.`
+                      : ""
+                  )
+                }}
+                max={maxDate}
                 className="h-11 border-border/50 bg-background/50 pl-10"
               />
+              {dateError ? (
+                <p className="text-xs text-red-400">{dateError}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Datas máximas permitidas: {dateLimitLabel}.
+                </p>
+              )}
             </div>
           </div>
 

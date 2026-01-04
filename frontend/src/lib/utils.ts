@@ -25,6 +25,71 @@ export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat("pt-BR").format(parsedDate)
 }
 
+const MAX_DATE_YEARS_AHEAD = 1
+
+const pad2 = (value: number) => String(value).padStart(2, "0")
+
+export function formatDateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}
+
+export function formatDateTimeInputValue(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+export function getMaxAllowedDate(yearsAhead = MAX_DATE_YEARS_AHEAD): string {
+  const today = new Date()
+  const max = new Date(today.getFullYear() + yearsAhead, 11, 31)
+  return formatDateInputValue(max)
+}
+
+export function getMaxAllowedDateTime(yearsAhead = MAX_DATE_YEARS_AHEAD): string {
+  const today = new Date()
+  const max = new Date(today.getFullYear() + yearsAhead, 11, 31, 23, 59)
+  return formatDateTimeInputValue(max)
+}
+
+export function isDateWithinLimit(value: string, yearsAhead = MAX_DATE_YEARS_AHEAD): boolean {
+  if (!value) return true
+  const today = new Date()
+  const max = new Date(today.getFullYear() + yearsAhead, 11, 31, 23, 59, 59)
+  const candidate = new Date(`${value}T00:00:00`)
+  return candidate <= max
+}
+
+export function isDateTimeWithinLimit(value: string, yearsAhead = MAX_DATE_YEARS_AHEAD): boolean {
+  if (!value) return true
+  const today = new Date()
+  const max = new Date(today.getFullYear() + yearsAhead, 11, 31, 23, 59, 59)
+  const candidate = new Date(value)
+  return candidate <= max
+}
+
+export function formatCurrencyInput(value: string): string {
+  const digits = value.replace(/\D/g, "")
+  if (!digits) return ""
+  const amount = Number(digits) / 100
+  const formatted = new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+  return `R$ ${formatted}`
+}
+
+export function parseCurrencyInput(value: string): string {
+  const digits = value.replace(/\D/g, "")
+  if (!digits) return ""
+  const amount = Number(digits) / 100
+  return amount.toFixed(2)
+}
+
+export function openNativePicker(input: HTMLInputElement): void {
+  const picker = (input as HTMLInputElement & { showPicker?: () => void }).showPicker
+  if (typeof picker === "function") {
+    picker.call(input)
+  }
+}
+
 const expenseGroupStyles: Record<string, string> = {
   alimentacao: "border-emerald-400/40 bg-emerald-400/15 text-emerald-200",
   moradia: "border-indigo-400/40 bg-indigo-400/15 text-indigo-200",

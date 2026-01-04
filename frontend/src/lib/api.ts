@@ -15,6 +15,7 @@ import type {
   Budget,
   BudgetStatus,
   Goal,
+  AgendaEvent,
   PaginatedResponse,
   Notification,
   AlertRule,
@@ -126,14 +127,35 @@ export const financeApi = {
     amount: number | string
     date: string
     description: string
-    category?: number
+    category?: number | null
     category_suggestion?: string
-    account?: number
+    account?: number | null
     tags?: string
     notes?: string
   }): Promise<Transaction> => {
     const response = await api.post<Transaction>("/transactions/", data)
     return response.data
+  },
+
+  updateTransaction: async (
+    id: number,
+    data: Partial<{
+      transaction_type: "INCOME" | "EXPENSE"
+      amount: number | string
+      date: string
+      description: string
+      category?: number | null
+      account?: number | null
+      tags?: string
+      notes?: string
+    }>
+  ): Promise<Transaction> => {
+    const response = await api.patch<Transaction>(`/transactions/${id}/`, data)
+    return response.data
+  },
+
+  deleteTransaction: async (id: number): Promise<void> => {
+    await api.delete(`/transactions/${id}/`)
   },
 
   // Categories
@@ -244,6 +266,63 @@ export const financeApi = {
   ): Promise<Goal> => {
     const response = await api.post<Goal>(`/goals/${goalId}/contribute/`, data)
     return response.data
+  },
+}
+
+// Agenda API
+export const agendaApi = {
+  getEvents: async (params?: {
+    month?: string
+    status?: string
+    event_type?: string
+  }): Promise<PaginatedResponse<AgendaEvent>> => {
+    const response = await api.get<PaginatedResponse<AgendaEvent>>("/events/", {
+      params,
+    })
+    return response.data
+  },
+
+  createEvent: async (data: {
+    title: string
+    event_type: "AULA" | "SHOW" | "FREELA" | "OUTRO"
+    start_datetime: string
+    end_datetime?: string | null
+    location?: string
+    expected_amount?: number | string | null
+    actual_amount?: number | string | null
+    status?: "PENDENTE" | "PAGO" | "CANCELADO"
+    payment_date?: string | null
+    client_name?: string
+    auto_create_transaction?: boolean
+    notes?: string
+  }): Promise<AgendaEvent> => {
+    const response = await api.post<AgendaEvent>("/events/", data)
+    return response.data
+  },
+
+  updateEvent: async (
+    id: number,
+    data: Partial<{
+      title: string
+      event_type: "AULA" | "SHOW" | "FREELA" | "OUTRO"
+      start_datetime: string
+      end_datetime?: string | null
+      location?: string
+      expected_amount?: number | string | null
+      actual_amount?: number | string | null
+      status?: "PENDENTE" | "PAGO" | "CANCELADO"
+      payment_date?: string | null
+      client_name?: string
+      auto_create_transaction?: boolean
+      notes?: string
+    }>
+  ): Promise<AgendaEvent> => {
+    const response = await api.patch<AgendaEvent>(`/events/${id}/`, data)
+    return response.data
+  },
+
+  deleteEvent: async (id: number): Promise<void> => {
+    await api.delete(`/events/${id}/`)
   },
 }
 

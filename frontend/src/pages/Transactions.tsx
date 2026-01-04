@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { Link } from "react-router-dom"
@@ -7,11 +7,26 @@ import { financeApi } from "../lib/api"
 import {
   formatCurrency,
   formatDate,
+  formatCurrencyInput,
+  parseCurrencyInput,
+  getMaxAllowedDate,
+  isDateWithinLimit,
+  openNativePicker,
   getCategoryDotStyle,
 } from "../lib/utils"
+import type { Transaction } from "../types"
 import { Input } from "../components/ui/input"
 import { Badge } from "../components/ui/badge"
 import { Button } from "../components/ui/button"
+import { Label } from "../components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog"
 import { Skeleton } from "../components/ui/skeleton"
 import {
   TrendingUp,
@@ -24,10 +39,63 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
+  Pencil,
+  Trash2,
+  Plus,
 } from "lucide-react"
+
+type TransactionPayload = {
+  transaction_type: "INCOME" | "EXPENSE"
+  amount: number | string
+  date: string
+  description: string
+  category?: number | null
+  account?: number | null
+  tags?: string
+  notes?: string
+}
+
+type TransactionFormState = {
+  transaction_type: "INCOME" | "EXPENSE"
+  amount: string
+  date: string
+  description: string
+  category: string
+  account: string
+  tags: string
+  notes: string
+}
 
 export function TransactionsPage() {
   const [monthFilter, setMonthFilter] = useState(format(new Date(), "yyyy-MM"))
+  const queryClient = useQueryClient()
+  const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), [])
+  const maxDate = useMemo(() => getMaxAllowedDate(), [])
+  const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
+  const [dateError, setDateError] = useState("")
+  const [editDateError, setEditDateError] = useState("")
+  const [createForm, setCreateForm] = useState<TransactionFormState>({
+    transaction_type: "EXPENSE",
+    amount: "",
+    date: today,
+    description: "",
+    category: "",
+    account: "",
+    tags: "",
+    notes: "",
+  })
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [editForm, setEditForm] = useState<TransactionFormState>({
+    transaction_type: "EXPENSE",
+    amount: "",
+    date: today,
+    description: "",
+    category: "",
+    account: "",
+    tags: "",
+    notes: "",
+  })
+  const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null)
 
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["transactions", monthFilter],
@@ -39,10 +107,87 @@ export function TransactionsPage() {
     queryFn: () => financeApi.getCategories(),
   })
 
+  const { data: accounts } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => financeApi.getAccounts(),
+  })
+
   const categoryLookup = useMemo(() => {
     const entries = categories?.results ?? []
     return new Map(entries.map((category) => [category.id, category]))
   }, [categories])
+
+  const createCategories = useMemo(() => {
+    return (categories?.results ?? []).filter(
+      (category) => category.category_type === createForm.transaction_type
+    )
+  }, [categories, createForm.transaction_type])
+
+  const editCategories = useMemo(() => {
+    return (categories?.results ?? []).filter(
+      (category) => category.category_type === editForm.transaction_type
+    )
+  }, [categories, editForm.transaction_type])
+
+  useEffect(() => {
+    if (!editingTransaction) return
+    const nextForm = {
+      transaction_type: editingTransaction.transaction_type,
+      amount: formatCurrencyInput(editingTransaction.amount),
+      date: editingTransaction.date,
+      description: editingTransaction.description,
+      category: editingTransaction.category ? String(editingTransaction.category) : "",
+      account: editingTransaction.account ? String(editingTransaction.account) : "",
+      tags: editingTransaction.tags || "",
+      notes: editingTransaction.notes || "",
+    }
+    setEditForm(nextForm)
+    setEditDateError(
+      isDateWithinLimit(nextForm.date) ? "" : `Data deve ser até ${dateLimitLabel}.`
+    )
+  }, [dateLimitLabel, editingTransaction])
+
+  const createTransactionMutation = useMutation({
+    mutationFn: financeApi.createTransaction,
+    onSuccess: () => {
+      setCreateForm({
+        transaction_type: "EXPENSE",
+        amount: "",
+        date: today,
+        description: "",
+        category: "",
+        account: "",
+        tags: "",
+        notes: "",
+      })
+      setDateError("")
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
+      queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
+    },
+  })
+
+  const updateTransactionMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<TransactionPayload> }) =>
+      financeApi.updateTransaction(id, data),
+    onSuccess: () => {
+      setEditingTransaction(null)
+      setEditDateError("")
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
+      queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
+    },
+  })
+
+  const deleteTransactionMutation = useMutation({
+    mutationFn: financeApi.deleteTransaction,
+    onSuccess: () => {
+      setDeletingTransaction(null)
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
+      queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
+    },
+  })
 
   // Calcular totais
   const totals = useMemo(() => {
@@ -63,6 +208,61 @@ export function TransactionsPage() {
     const [year, month] = monthFilter.split("-")
     return format(new Date(parseInt(year), parseInt(month) - 1), "MMMM 'de' yyyy", { locale: ptBR })
   }, [monthFilter])
+
+  const handleCreateSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!createForm.description || !createForm.amount || !createForm.date) return
+    if (!isDateWithinLimit(createForm.date)) {
+      setDateError(`Data deve ser até ${dateLimitLabel}.`)
+      return
+    }
+
+    const amountValue = parseCurrencyInput(createForm.amount)
+    if (!amountValue || Number(amountValue) <= 0) return
+
+    const payload: TransactionPayload = {
+      transaction_type: createForm.transaction_type,
+      amount: amountValue,
+      date: createForm.date,
+      description: createForm.description,
+      category: createForm.category ? Number(createForm.category) : null,
+      account: createForm.account ? Number(createForm.account) : null,
+      tags: createForm.tags,
+      notes: createForm.notes,
+    }
+
+    createTransactionMutation.mutate(payload)
+  }
+
+  const handleEditSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!editingTransaction) return
+    if (!isDateWithinLimit(editForm.date)) {
+      setEditDateError(`Data deve ser até ${dateLimitLabel}.`)
+      return
+    }
+
+    const amountValue = parseCurrencyInput(editForm.amount)
+    if (!amountValue || Number(amountValue) <= 0) return
+
+    const payload: Partial<TransactionPayload> = {
+      transaction_type: editForm.transaction_type,
+      amount: amountValue,
+      date: editForm.date,
+      description: editForm.description,
+      category: editForm.category ? Number(editForm.category) : null,
+      account: editForm.account ? Number(editForm.account) : null,
+      tags: editForm.tags,
+      notes: editForm.notes,
+    }
+
+    updateTransactionMutation.mutate({ id: editingTransaction.id, data: payload })
+  }
+
+  const handleDelete = () => {
+    if (!deletingTransaction) return
+    deleteTransactionMutation.mutate(deletingTransaction.id)
+  }
 
   return (
     <div className="space-y-6">
@@ -128,6 +328,175 @@ export function TransactionsPage() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card/80 to-card p-6">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+            <Plus className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Nova transação</h3>
+            <p className="text-xs text-muted-foreground">
+              Registre manualmente uma movimentação.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleCreateSubmit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Tipo</Label>
+            <select
+              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              value={createForm.transaction_type}
+              onChange={(event) => {
+                const nextType = event.target.value as TransactionFormState["transaction_type"]
+                setCreateForm((prev) => {
+                  const nextCategories = (categories?.results ?? []).filter(
+                    (category) => category.category_type === nextType
+                  )
+                  const validCategory = nextCategories.some(
+                    (category) => String(category.id) === prev.category
+                  )
+                  return {
+                    ...prev,
+                    transaction_type: nextType,
+                    category: validCategory ? prev.category : "",
+                  }
+                })
+              }}
+            >
+              <option value="EXPENSE">Despesa</option>
+              <option value="INCOME">Receita</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Valor</Label>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="R$ 0,00"
+              value={createForm.amount}
+              onChange={(event) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  amount: formatCurrencyInput(event.target.value),
+                }))
+              }
+              className="h-11 border-border/50 bg-background/50"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Data</Label>
+            <Input
+              type="date"
+              value={createForm.date}
+              onClick={(event) => openNativePicker(event.currentTarget)}
+              onChange={(event) => {
+                const nextDate = event.target.value
+                setCreateForm((prev) => ({ ...prev, date: nextDate }))
+                setDateError(
+                  isDateWithinLimit(nextDate)
+                    ? ""
+                    : `Data deve ser até ${dateLimitLabel}.`
+                )
+              }}
+              max={maxDate}
+              className="h-11 border-border/50 bg-background/50"
+            />
+            {dateError ? (
+              <p className="text-xs text-red-400">{dateError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Data máxima permitida: {dateLimitLabel}.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2 lg:col-span-2">
+            <Label className="text-muted-foreground">Descrição</Label>
+            <Input
+              value={createForm.description}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, description: event.target.value }))
+              }
+              className="h-11 border-border/50 bg-background/50"
+              placeholder="Ex: Aluguel, Cachê do show, Compras"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Categoria</Label>
+            <select
+              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              value={createForm.category}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, category: event.target.value }))
+              }
+            >
+              <option value="">Sem categoria</option>
+              {createCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Conta</Label>
+            <select
+              className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              value={createForm.account}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, account: event.target.value }))
+              }
+            >
+              <option value="">Sem conta</option>
+              {accounts?.results.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Tags</Label>
+            <Input
+              value={createForm.tags}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, tags: event.target.value }))
+              }
+              className="h-11 border-border/50 bg-background/50"
+              placeholder="ex: fixo, transporte"
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2 lg:col-span-4">
+            <Label className="text-muted-foreground">Observações</Label>
+            <textarea
+              value={createForm.notes}
+              onChange={(event) =>
+                setCreateForm((prev) => ({ ...prev, notes: event.target.value }))
+              }
+              className="min-h-[88px] w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Detalhes adicionais"
+            />
+          </div>
+
+          <div className="md:col-span-2 lg:col-span-4 flex justify-end">
+            <Button
+              type="submit"
+              isLoading={createTransactionMutation.isPending}
+              disabled={!createForm.description || !createForm.amount || !createForm.date}
+            >
+              Salvar transação
+            </Button>
+          </div>
+        </form>
+      </div>
+
       {/* Filters */}
       <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 p-5 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-4">
@@ -140,6 +509,7 @@ export function TransactionsPage() {
             <Input
               type="month"
               value={monthFilter}
+              onClick={(event) => openNativePicker(event.currentTarget)}
               onChange={(e) => setMonthFilter(e.target.value)}
               className="w-44 border-border/50 bg-background/50"
             />
@@ -189,7 +559,7 @@ export function TransactionsPage() {
                 </div>
               ))}
             </div>
-          ) : transactions?.results.length === 0 ? (
+          ) : !transactions?.results?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/20">
                 <Search className="h-8 w-8 text-muted-foreground/60" />
@@ -207,7 +577,7 @@ export function TransactionsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {transactions?.results.map((transaction) => {
+              {transactions?.results?.map((transaction) => {
                 const categoryInfo = transaction.category
                   ? categoryLookup.get(transaction.category)
                   : undefined
@@ -268,11 +638,29 @@ export function TransactionsPage() {
                         </div>
                       </div>
                     </div>
-                    <div className={`text-xl font-bold tabular-nums ${
-                      isIncome ? "text-emerald-400" : "text-red-400"
-                    }`}>
-                      {isIncome ? "+" : "-"}
-                      {formatCurrency(parseFloat(transaction.amount))}
+                    <div className="flex items-center gap-3">
+                      <div className={`text-xl font-bold tabular-nums ${
+                        isIncome ? "text-emerald-400" : "text-red-400"
+                      }`}>
+                        {isIncome ? "+" : "-"}
+                        {formatCurrency(parseFloat(transaction.amount))}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingTransaction(transaction)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeletingTransaction(transaction)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-400" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )
@@ -281,6 +669,218 @@ export function TransactionsPage() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={!!editingTransaction}
+        onOpenChange={(open) => {
+          if (!open) setEditingTransaction(null)
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar transação</DialogTitle>
+            <DialogDescription>
+              Ajuste os detalhes da movimentação selecionada.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Tipo</Label>
+              <select
+                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={editForm.transaction_type}
+                onChange={(event) => {
+                  const nextType = event.target.value as TransactionFormState["transaction_type"]
+                  setEditForm((prev) => {
+                    const nextCategories = (categories?.results ?? []).filter(
+                      (category) => category.category_type === nextType
+                    )
+                    const validCategory = nextCategories.some(
+                      (category) => String(category.id) === prev.category
+                    )
+                    return {
+                      ...prev,
+                      transaction_type: nextType,
+                      category: validCategory ? prev.category : "",
+                    }
+                  })
+                }}
+              >
+                <option value="EXPENSE">Despesa</option>
+                <option value="INCOME">Receita</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Valor</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                placeholder="R$ 0,00"
+                value={editForm.amount}
+                onChange={(event) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    amount: formatCurrencyInput(event.target.value),
+                  }))
+                }
+                className="h-11 border-border/50 bg-background/50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Data</Label>
+              <Input
+                type="date"
+                value={editForm.date}
+                onClick={(event) => openNativePicker(event.currentTarget)}
+                onChange={(event) => {
+                  const nextDate = event.target.value
+                  setEditForm((prev) => ({ ...prev, date: nextDate }))
+                  setEditDateError(
+                    isDateWithinLimit(nextDate)
+                      ? ""
+                      : `Data deve ser até ${dateLimitLabel}.`
+                  )
+                }}
+                max={maxDate}
+                className="h-11 border-border/50 bg-background/50"
+              />
+              {editDateError ? (
+                <p className="text-xs text-red-400">{editDateError}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Data máxima permitida: {dateLimitLabel}.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-muted-foreground">Descrição</Label>
+              <Input
+                value={editForm.description}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, description: event.target.value }))
+                }
+                className="h-11 border-border/50 bg-background/50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Categoria</Label>
+              <select
+                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={editForm.category}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, category: event.target.value }))
+                }
+              >
+                <option value="">Sem categoria</option>
+                {editCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Conta</Label>
+              <select
+                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 text-sm transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={editForm.account}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, account: event.target.value }))
+                }
+              >
+                <option value="">Sem conta</option>
+                {accounts?.results.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-muted-foreground">Tags</Label>
+              <Input
+                value={editForm.tags}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, tags: event.target.value }))
+                }
+                className="h-11 border-border/50 bg-background/50"
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-muted-foreground">Observações</Label>
+              <textarea
+                value={editForm.notes}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, notes: event.target.value }))
+                }
+                className="min-h-[90px] w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            <DialogFooter className="md:col-span-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingTransaction(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                isLoading={updateTransactionMutation.isPending}
+                disabled={!editForm.description || !editForm.amount || !editForm.date}
+              >
+                Salvar alterações
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deletingTransaction}
+        onOpenChange={(open) => {
+          if (!open) setDeletingTransaction(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir transação</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir{" "}
+              <span className="font-semibold text-foreground">
+                {deletingTransaction?.description}
+              </span>
+              ? Essa ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeletingTransaction(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              isLoading={deleteTransactionMutation.isPending}
+              onClick={handleDelete}
+            >
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

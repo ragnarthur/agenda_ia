@@ -2,7 +2,15 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { format } from "date-fns"
 import { financeApi } from "../lib/api"
-import { formatCurrency } from "../lib/utils"
+import {
+  formatCurrency,
+  formatCurrencyInput,
+  parseCurrencyInput,
+  formatDate,
+  getMaxAllowedDate,
+  isDateWithinLimit,
+  openNativePicker,
+} from "../lib/utils"
 import type { Goal } from "../types"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
@@ -52,6 +60,10 @@ const goalStatusConfig: Record<Goal["status"], { label: string; color: string; i
 export function GoalsPage() {
   const queryClient = useQueryClient()
   const today = useMemo(() => format(new Date(), "yyyy-MM-dd"), [])
+  const maxDate = useMemo(() => getMaxAllowedDate(), [])
+  const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
+  const [dateError, setDateError] = useState("")
+  const [contributionErrors, setContributionErrors] = useState<Record<number, string>>({})
   const [formData, setFormData] = useState({
     name: "",
     goal_type: "SAVINGS",
@@ -72,7 +84,7 @@ export function GoalsPage() {
       financeApi.createGoal({
         name: formData.name,
         goal_type: formData.goal_type as Goal["goal_type"],
-        target_amount: formData.target_amount,
+        target_amount: parseCurrencyInput(formData.target_amount),
         target_date: formData.target_date || null,
       }),
     onSuccess: () => {
@@ -82,6 +94,7 @@ export function GoalsPage() {
         target_amount: "",
         target_date: "",
       })
+      setDateError("")
       queryClient.invalidateQueries({ queryKey: ["goals"] })
     },
   })
@@ -89,7 +102,7 @@ export function GoalsPage() {
   const contributeMutation = useMutation({
     mutationFn: (payload: { goalId: number; amount: string; date: string }) =>
       financeApi.contributeGoal(payload.goalId, {
-        amount: payload.amount,
+        amount: parseCurrencyInput(payload.amount),
         date: payload.date,
       }),
     onSuccess: () => {
@@ -102,6 +115,10 @@ export function GoalsPage() {
     if (!formData.name || !formData.target_amount) {
       return
     }
+    if (formData.target_date && !isDateWithinLimit(formData.target_date)) {
+      setDateError(`Datas devem ser até ${dateLimitLabel}.`)
+      return
+    }
     createGoalMutation.mutate()
   }
 
@@ -110,6 +127,14 @@ export function GoalsPage() {
     if (!contribution?.amount) {
       return
     }
+    if (contribution.date && !isDateWithinLimit(contribution.date)) {
+      setContributionErrors((prev) => ({
+        ...prev,
+        [goalId]: `Datas devem ser até ${dateLimitLabel}.`,
+      }))
+      return
+    }
+    setContributionErrors((prev) => ({ ...prev, [goalId]: "" }))
     contributeMutation.mutate({
       goalId,
       amount: contribution.amount,
@@ -119,6 +144,7 @@ export function GoalsPage() {
       ...prev,
       [goalId]: { amount: "", date: today },
     }))
+    setContributionErrors((prev) => ({ ...prev, [goalId]: "" }))
   }
 
   // Estatísticas
@@ -246,15 +272,14 @@ export function GoalsPage() {
             <div className="relative">
               <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0,00"
+                type="text"
+                inputMode="decimal"
+                placeholder="R$ 0,00"
                 value={formData.target_amount}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    target_amount: e.target.value,
+                    target_amount: formatCurrencyInput(e.target.value),
                   }))
                 }
                 className="h-11 border-border/50 bg-background/50 pl-10"
@@ -269,15 +294,30 @@ export function GoalsPage() {
               <Input
                 type="date"
                 value={formData.target_date}
-                onChange={(e) =>
+                onClick={(event) => openNativePicker(event.currentTarget)}
+                onChange={(e) => {
+                  const nextDate = e.target.value
                   setFormData((prev) => ({
                     ...prev,
-                    target_date: e.target.value,
+                    target_date: nextDate,
                   }))
-                }
+                  setDateError(
+                    nextDate && !isDateWithinLimit(nextDate)
+                      ? `Datas devem ser até ${dateLimitLabel}.`
+                      : ""
+                  )
+                }}
+                max={maxDate}
                 className="h-11 border-border/50 bg-background/50 pl-10"
               />
             </div>
+            {dateError ? (
+              <p className="text-xs text-red-400">{dateError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Datas máximas permitidas: {dateLimitLabel}.
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-4">
@@ -416,17 +456,16 @@ export function GoalsPage() {
                           <div className="relative">
                             <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="Valor"
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="R$ 0,00"
                               value={contribution.amount}
                               onChange={(e) =>
                                 setContributions((prev) => ({
                                   ...prev,
                                   [goal.id]: {
                                     ...contribution,
-                                    amount: e.target.value,
+                                    amount: formatCurrencyInput(e.target.value),
                                   },
                                 }))
                               }
@@ -438,17 +477,32 @@ export function GoalsPage() {
                             <Input
                               type="date"
                               value={contribution.date}
-                              onChange={(e) =>
+                              onClick={(event) => openNativePicker(event.currentTarget)}
+                              onChange={(e) => {
+                                const nextDate = e.target.value
                                 setContributions((prev) => ({
                                   ...prev,
                                   [goal.id]: {
                                     ...contribution,
-                                    date: e.target.value,
+                                    date: nextDate,
                                   },
                                 }))
-                              }
+                                setContributionErrors((prev) => ({
+                                  ...prev,
+                                  [goal.id]:
+                                    nextDate && !isDateWithinLimit(nextDate)
+                                      ? `Datas devem ser até ${dateLimitLabel}.`
+                                      : "",
+                                }))
+                              }}
+                              max={maxDate}
                               className="h-10 border-border/50 bg-background/50 pl-10"
                             />
+                            {contributionErrors[goal.id] ? (
+                              <p className="mt-2 text-xs text-red-400">
+                                {contributionErrors[goal.id]}
+                              </p>
+                            ) : null}
                           </div>
                           <Button
                             onClick={() => handleContribute(goal.id)}
