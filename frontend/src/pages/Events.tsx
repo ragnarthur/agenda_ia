@@ -84,8 +84,7 @@ const statusStyles: Record<string, string> = {
 const selectTriggerClasses =
   "h-11 border-border/70 bg-[hsl(var(--card))] text-foreground shadow-sm"
 const selectContentClasses =
-  "border-border/80 bg-[hsl(var(--popover))] text-foreground shadow-2xl"
-const selectItemClasses = "text-foreground"
+  "border-border/80 bg-[hsl(var(--popover))] shadow-2xl"
 
 export function EventsPage() {
   const [monthFilter, setMonthFilter] = useState(format(new Date(), "yyyy-MM"))
@@ -350,10 +349,10 @@ export function EventsPage() {
                 <SelectValue className="text-foreground" placeholder="Selecione o tipo" />
               </SelectTrigger>
               <SelectContent className={selectContentClasses}>
-                <SelectItem className={selectItemClasses} value="AULA">Aula</SelectItem>
-                <SelectItem className={selectItemClasses} value="SHOW">Show</SelectItem>
-                <SelectItem className={selectItemClasses} value="FREELA">Freela</SelectItem>
-                <SelectItem className={selectItemClasses} value="OUTRO">Outro</SelectItem>
+                <SelectItem value="AULA">Aula</SelectItem>
+                <SelectItem value="SHOW">Show</SelectItem>
+                <SelectItem value="FREELA">Freela</SelectItem>
+                <SelectItem value="OUTRO">Outro</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -379,9 +378,9 @@ export function EventsPage() {
                 <SelectValue className="text-foreground" placeholder="Selecione o status" />
               </SelectTrigger>
               <SelectContent className={selectContentClasses}>
-                <SelectItem className={selectItemClasses} value="PENDENTE">Pendente</SelectItem>
-                <SelectItem className={selectItemClasses} value="PAGO">Pago</SelectItem>
-                <SelectItem className={selectItemClasses} value="CANCELADO">Cancelado</SelectItem>
+                <SelectItem value="PENDENTE">Pendente</SelectItem>
+                <SelectItem value="PAGO">Pago</SelectItem>
+                <SelectItem value="CANCELADO">Cancelado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -778,10 +777,10 @@ export function EventsPage() {
                   <SelectValue className="text-foreground" placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent className={selectContentClasses}>
-                  <SelectItem className={selectItemClasses} value="AULA">Aula</SelectItem>
-                  <SelectItem className={selectItemClasses} value="SHOW">Show</SelectItem>
-                  <SelectItem className={selectItemClasses} value="FREELA">Freela</SelectItem>
-                  <SelectItem className={selectItemClasses} value="OUTRO">Outro</SelectItem>
+                  <SelectItem value="AULA">Aula</SelectItem>
+                  <SelectItem value="SHOW">Show</SelectItem>
+                  <SelectItem value="FREELA">Freela</SelectItem>
+                  <SelectItem value="OUTRO">Outro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -807,9 +806,9 @@ export function EventsPage() {
                   <SelectValue className="text-foreground" placeholder="Selecione o status" />
                 </SelectTrigger>
                 <SelectContent className={selectContentClasses}>
-                  <SelectItem className={selectItemClasses} value="PENDENTE">Pendente</SelectItem>
-                  <SelectItem className={selectItemClasses} value="PAGO">Pago</SelectItem>
-                  <SelectItem className={selectItemClasses} value="CANCELADO">Cancelado</SelectItem>
+                  <SelectItem value="PENDENTE">Pendente</SelectItem>
+                  <SelectItem value="PAGO">Pago</SelectItem>
+                  <SelectItem value="CANCELADO">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
