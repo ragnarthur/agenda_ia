@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { Link } from "react-router-dom"
-import { financeApi } from "../lib/api"
+import { aiApi, financeApi } from "../lib/api"
 import {
   formatCurrency,
   formatDate,
@@ -14,7 +14,7 @@ import {
   openNativePicker,
   getCategoryDotStyle,
 } from "../lib/utils"
-import type { Transaction } from "../types"
+import type { Transaction, TransactionProposal } from "../types"
 import { Input } from "../components/ui/input"
 import { Badge } from "../components/ui/badge"
 import { Button } from "../components/ui/button"
@@ -49,6 +49,8 @@ import {
   Pencil,
   Trash2,
   PlusCircle,
+  Send,
+  Loader2,
 } from "lucide-react"
 
 type TransactionPayload = {
@@ -82,6 +84,10 @@ export function TransactionsPage() {
   const [dateError, setDateError] = useState("")
   const [editDateError, setEditDateError] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
+  const [createMode, setCreateMode] = useState<"manual" | "ai">("manual")
+  const [aiInputText, setAiInputText] = useState("")
+  const [aiProposal, setAiProposal] = useState<TransactionProposal | null>(null)
+  const [aiSelectedCategoryId, setAiSelectedCategoryId] = useState<string | null>(null)
   const selectTriggerClasses = "h-11 w-full"
   const [createForm, setCreateForm] = useState<TransactionFormState>({
     transaction_type: "EXPENSE",
@@ -137,6 +143,22 @@ export function TransactionsPage() {
       (category) => category.category_type === editForm.transaction_type
     )
   }, [categories, editForm.transaction_type])
+  const selectedCreateCategory = useMemo(() => {
+    if (!createForm.category) return null
+    return (
+      createCategories.find(
+        (category) => String(category.id) === createForm.category
+      ) ?? null
+    )
+  }, [createCategories, createForm.category])
+  const selectedEditCategory = useMemo(() => {
+    if (!editForm.category) return null
+    return (
+      editCategories.find(
+        (category) => String(category.id) === editForm.category
+      ) ?? null
+    )
+  }, [editCategories, editForm.category])
 
   useEffect(() => {
     if (!editingTransaction) return
@@ -156,6 +178,18 @@ export function TransactionsPage() {
     )
   }, [dateLimitLabel, editingTransaction])
 
+  // Set initial AI category when proposal changes
+  useEffect(() => {
+    if (aiProposal?.category_suggestion && categories?.results) {
+      const matched = categories.results.find(
+        (c) => c.name.toLowerCase() === aiProposal.category_suggestion?.toLowerCase()
+      )
+      setAiSelectedCategoryId(matched ? String(matched.id) : null)
+    } else {
+      setAiSelectedCategoryId(null)
+    }
+  }, [aiProposal, categories])
+
   const resetCreateForm = () => {
     setCreateForm({
       transaction_type: "EXPENSE",
@@ -168,11 +202,17 @@ export function TransactionsPage() {
       notes: "",
     })
     setDateError("")
+    setAiInputText("")
+    setAiProposal(null)
+    setAiSelectedCategoryId(null)
   }
 
   const handleCreateDialogChange = (open: boolean) => {
     setCreateOpen(open)
     resetCreateForm()
+    if (!open) {
+      setCreateMode("manual")
+    }
   }
 
   const createTransactionMutation = useMutation({
@@ -201,6 +241,30 @@ export function TransactionsPage() {
     mutationFn: financeApi.deleteTransaction,
     onSuccess: () => {
       setDeletingTransaction(null)
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
+      queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
+    },
+  })
+
+  const aiParseMutation = useMutation({
+    mutationFn: (text: string) => aiApi.parseTransaction(text),
+    onSuccess: (data) => {
+      setAiProposal(data.proposal)
+    },
+  })
+
+  const aiSaveMutation = useMutation({
+    mutationFn: (data: {
+      transaction_type: "INCOME" | "EXPENSE"
+      amount: number
+      date: string
+      description: string
+      category?: number
+      account?: number
+    }) => financeApi.createTransaction(data),
+    onSuccess: () => {
+      handleCreateDialogChange(false)
       queryClient.invalidateQueries({ queryKey: ["transactions"] })
       queryClient.invalidateQueries({ queryKey: ["monthlyReport"] })
       queryClient.invalidateQueries({ queryKey: ["budgetStatus"] })
@@ -280,6 +344,37 @@ export function TransactionsPage() {
   const handleDelete = () => {
     if (!deletingTransaction) return
     deleteTransactionMutation.mutate(deletingTransaction.id)
+  }
+
+  const handleAiSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (aiInputText.trim()) {
+      aiParseMutation.mutate(aiInputText.trim())
+    }
+  }
+
+  const handleAiConfirm = () => {
+    if (!aiProposal) return
+
+    const account = accounts?.results.find(
+      (a) =>
+        a.name.toLowerCase() === aiProposal.account_suggestion?.toLowerCase() ||
+        a.account_type === aiProposal.account_suggestion
+    )
+
+    aiSaveMutation.mutate({
+      transaction_type: aiProposal.type,
+      amount: aiProposal.amount,
+      date: aiProposal.date,
+      description: aiProposal.description,
+      category: aiSelectedCategoryId ? Number(aiSelectedCategoryId) : undefined,
+      account: account?.id,
+    })
+  }
+
+  const handleAiCancel = () => {
+    setAiProposal(null)
+    setAiInputText("")
   }
 
   return (
@@ -364,10 +459,73 @@ export function TransactionsPage() {
           <DialogHeader className="border-b border-border/60 pb-4">
             <DialogTitle>Nova transação</DialogTitle>
             <DialogDescription>
-              Registre manualmente uma movimentação.
+              {createMode === "manual"
+                ? "Registre manualmente uma movimentação."
+                : "Descreva a transação em linguagem natural."}
             </DialogDescription>
           </DialogHeader>
 
+          {/* Mode Toggle */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setCreateMode("manual")}
+              className={`group relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all duration-200 ${
+                createMode === "manual"
+                  ? "border-primary bg-primary/15 shadow-[0_0_24px_-6px_rgba(45,212,191,0.6)]"
+                  : "border-primary/20 bg-primary/5 hover:border-primary/40 hover:bg-primary/10 hover:shadow-[0_0_16px_-6px_rgba(45,212,191,0.4)]"
+              }`}
+            >
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
+                createMode === "manual"
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                  : "bg-primary/15 text-primary/70 group-hover:bg-primary/25 group-hover:text-primary"
+              }`}>
+                <PlusCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className={`font-medium transition-colors ${createMode === "manual" ? "text-foreground" : "text-primary/70 group-hover:text-primary"}`}>
+                  Manual
+                </p>
+                <p className={`text-xs transition-colors ${createMode === "manual" ? "text-muted-foreground" : "text-primary/50 group-hover:text-primary/70"}`}>
+                  Preencher campos
+                </p>
+              </div>
+              {createMode === "manual" && (
+                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary shadow-[0_0_8px_rgba(45,212,191,0.6)]" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateMode("ai")}
+              className={`group relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all duration-200 ${
+                createMode === "ai"
+                  ? "border-violet-500 bg-violet-500/15 shadow-[0_0_24px_-6px_rgba(139,92,246,0.6)]"
+                  : "border-violet-500/20 bg-violet-500/5 hover:border-violet-500/40 hover:bg-violet-500/10 hover:shadow-[0_0_16px_-6px_rgba(139,92,246,0.4)]"
+              }`}
+            >
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
+                createMode === "ai"
+                  ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/30"
+                  : "bg-violet-500/15 text-violet-400/70 group-hover:bg-violet-500/25 group-hover:text-violet-400"
+              }`}>
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className={`font-medium transition-colors ${createMode === "ai" ? "text-foreground" : "text-violet-400/70 group-hover:text-violet-400"}`}>
+                  Assistente de IA
+                </p>
+                <p className={`text-xs transition-colors ${createMode === "ai" ? "text-muted-foreground" : "text-violet-400/50 group-hover:text-violet-400/70"}`}>
+                  Descrever em texto
+                </p>
+              </div>
+              {createMode === "ai" && (
+                <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+              )}
+            </button>
+          </div>
+
+          {createMode === "manual" ? (
           <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 via-card/70 to-card/60 p-6 shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]">
             <form onSubmit={handleCreateSubmit} className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
@@ -477,13 +635,40 @@ export function TransactionsPage() {
                   }
                 >
                   <SelectTrigger className={selectTriggerClasses}>
-                    <SelectValue placeholder="Sem categoria" />
+                    <SelectValue>
+                      {selectedCreateCategory ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={getCategoryDotStyle(selectedCreateCategory.color)}
+                          />
+                          <span>{selectedCreateCategory.name}</span>
+                        </div>
+                      ) : (
+                        "Sem categoria"
+                      )}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem categoria</SelectItem>
                     {createCategories.map((category) => (
-                      <SelectItem key={category.id} value={String(category.id)}>
-                        {category.name}
+                      <SelectItem
+                        key={category.id}
+                        value={String(category.id)}
+                        textValue={category.name}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={getCategoryDotStyle(category.color)}
+                          />
+                          <span>{category.name}</span>
+                          {category.group && (
+                            <span className="text-xs text-muted-foreground">
+                              ({category.group})
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -521,6 +706,204 @@ export function TransactionsPage() {
               </DialogFooter>
             </form>
           </div>
+          ) : (
+          /* AI Mode */
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-card/90 to-card p-6">
+              <form onSubmit={handleAiSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">O que aconteceu?</Label>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Input
+                      placeholder="Ex: recebi 500 de cachê no show de sábado"
+                      value={aiInputText}
+                      onChange={(e) => setAiInputText(e.target.value)}
+                      disabled={aiParseMutation.isPending}
+                      className="h-12 flex-1 text-base"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!aiInputText.trim() || aiParseMutation.isPending}
+                      className="h-12 min-w-[52px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:shadow-violet-500/30"
+                    >
+                      {aiParseMutation.isPending ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Send className="h-5 w-5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {aiProposal && (() => {
+              const isIncome = aiProposal.type === "INCOME"
+              const proposalTheme = isIncome
+                ? {
+                    panel: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-card/80 to-card",
+                    icon: "bg-emerald-500/15 text-emerald-400",
+                    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+                    text: "text-emerald-400",
+                  }
+                : {
+                    panel: "border-red-500/20 bg-gradient-to-br from-red-500/5 via-card/80 to-card",
+                    icon: "bg-red-500/15 text-red-400",
+                    badge: "border-red-500/30 bg-red-500/10 text-red-400",
+                    text: "text-red-400",
+                  }
+
+              return (
+                <div className={`rounded-2xl border ${proposalTheme.panel} p-6`}>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${proposalTheme.icon}`}>
+                        {isIncome ? (
+                          <TrendingUp className="h-5 w-5" />
+                        ) : (
+                          <TrendingDown className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Proposta de transação</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Revise os detalhes antes de confirmar
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={proposalTheme.badge}>
+                      Confiança {(aiProposal.confidence * 100).toFixed(0)}%
+                    </Badge>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                      <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Tipo
+                      </Label>
+                      <p className={`mt-2 text-lg font-semibold ${proposalTheme.text}`}>
+                        {isIncome ? "Receita" : "Despesa"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                      <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Valor
+                      </Label>
+                      <p className="mt-2 text-xl font-semibold">
+                        {formatCurrency(aiProposal.amount)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                      <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Data
+                      </Label>
+                      <p className="mt-2 font-medium">{formatDate(aiProposal.date)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/40 bg-muted/5 p-4">
+                      <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Descrição
+                      </Label>
+                      <p className="mt-2 font-medium">{aiProposal.description}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/40 bg-muted/5 p-4 md:col-span-2">
+                      <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Categoria
+                      </Label>
+                      <div className="mt-2">
+                        <Select
+                          value={aiSelectedCategoryId ?? ""}
+                          onValueChange={setAiSelectedCategoryId}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Selecione uma categoria">
+                              {aiSelectedCategoryId && (() => {
+                                const cat = categories?.results.find(c => String(c.id) === aiSelectedCategoryId)
+                                return cat ? (
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                                      style={getCategoryDotStyle(cat.color)}
+                                    />
+                                    <span>{cat.name}</span>
+                                  </div>
+                                ) : null
+                              })()}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories?.results.map((cat) => (
+                              <SelectItem key={cat.id} value={String(cat.id)}>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                                    style={getCategoryDotStyle(cat.color)}
+                                  />
+                                  <span>{cat.name}</span>
+                                  {cat.group && (
+                                    <span className="text-xs text-muted-foreground">
+                                      ({cat.group})
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {aiProposal.category_suggestion && !aiSelectedCategoryId && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Sugestão da IA: <span className="text-foreground">{aiProposal.category_suggestion}</span>
+                          </p>
+                        )}
+                        {aiProposal.category_suggestion && aiSelectedCategoryId && (() => {
+                          const selectedCat = categories?.results.find(c => String(c.id) === aiSelectedCategoryId)
+                          const isAiSuggestion = selectedCat?.name.toLowerCase() === aiProposal.category_suggestion?.toLowerCase()
+                          return !isAiSuggestion ? (
+                            <p className="mt-2 text-xs text-amber-400">
+                              Categoria alterada (sugestão IA: {aiProposal.category_suggestion})
+                            </p>
+                          ) : null
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      onClick={handleAiConfirm}
+                      disabled={aiSaveMutation.isPending}
+                      className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
+                    >
+                      {aiSaveMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <TrendingUp className="mr-2 h-4 w-4" />
+                      )}
+                      Confirmar e salvar
+                    </Button>
+                    <Button
+                      onClick={handleAiCancel}
+                      variant="outline"
+                      disabled={aiSaveMutation.isPending}
+                      className="border-border/50"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )
+            })()}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleCreateDialogChange(false)}
+              >
+                Fechar
+              </Button>
+            </DialogFooter>
+          </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -819,13 +1202,40 @@ export function TransactionsPage() {
                 }
               >
                 <SelectTrigger className={selectTriggerClasses}>
-                  <SelectValue placeholder="Sem categoria" />
+                  <SelectValue>
+                    {selectedEditCategory ? (
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={getCategoryDotStyle(selectedEditCategory.color)}
+                        />
+                        <span>{selectedEditCategory.name}</span>
+                      </div>
+                    ) : (
+                      "Sem categoria"
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem categoria</SelectItem>
                   {editCategories.map((category) => (
-                    <SelectItem key={category.id} value={String(category.id)}>
-                      {category.name}
+                    <SelectItem
+                      key={category.id}
+                      value={String(category.id)}
+                      textValue={category.name}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={getCategoryDotStyle(category.color)}
+                        />
+                        <span>{category.name}</span>
+                        {category.group && (
+                          <span className="text-xs text-muted-foreground">
+                            ({category.group})
+                          </span>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

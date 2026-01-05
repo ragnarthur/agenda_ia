@@ -237,6 +237,101 @@ h3,
   pointer-events: none;
 }
 
+.assistant-launch-cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(120deg, #34d399, #2dd4bf, #22d3ee);
+  background-size: 220% 220%;
+  animation: assistant-pan 6.5s ease-in-out infinite;
+  color: #022c22;
+  border: 1px solid rgba(110, 231, 183, 0.45);
+  box-shadow: 0 12px 26px -20px rgba(16, 185, 129, 0.6);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.assistant-launch-cta:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 16px 32px -22px rgba(16, 185, 129, 0.7);
+}
+
+.assistant-launch-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  animation: assistant-shine 5.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.pie-chart-overflow,
+.pie-chart-overflow .recharts-responsive-container,
+.pie-chart-overflow .recharts-wrapper,
+.pie-chart-overflow .recharts-surface,
+.pie-chart-overflow svg {
+  overflow: visible;
+}
+
+.dashboard-stat-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.dashboard-stat-card::after {
+  content: "";
+  position: absolute;
+  inset: -40% 0;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.6s ease, opacity 0.3s ease;
+}
+
+.dashboard-stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.dashboard-stat-card:hover::after {
+  transform: translateX(120%);
+  opacity: 1;
+}
+
+.dashboard-stat-card--soft {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.dashboard-stat-card--soft::after {
+  inset: -30% 0;
+  background: linear-gradient(
+    120deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 62%
+  );
+  transition: transform 0.75s ease, opacity 0.4s ease;
+}
+
+.dashboard-stat-card--soft:hover {
+  transform: translateY(-2px);
+}
+
+.dashboard-stat-card--soft:hover::after {
+  opacity: 0.75;
+}
+
 @keyframes assistant-pan {
   0% {
     background-position: 0% 50%;

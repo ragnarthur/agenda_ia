@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react"
+import type { AxiosError } from "axios"
 import { authApi, getStoredTokens, type UserInfo } from "../lib/api"
 
 interface AuthContextType {
@@ -26,14 +27,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const userInfo = await authApi.getCurrentUser()
           setUser(userInfo)
-        } catch {
-          // If fetching user fails, logout
-          authApi.logout()
-          setIsAuthenticated(false)
-          setUser(null)
+        } catch (error) {
+          const status = (error as AxiosError)?.response?.status
+          if (status === 401 || status === 403) {
+            // Only logout on unauthorized responses
+            authApi.logout()
+            setIsAuthenticated(false)
+            setUser(null)
+          }
+        } finally {
+          setIsLoading(false)
         }
+      } else {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
     fetchUser()
   }, [isAuthenticated])

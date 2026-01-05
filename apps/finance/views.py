@@ -289,12 +289,12 @@ def monthly_report(request):
         or 0
     )
 
-    # Top categorias de gasto
+    # Categorias de gasto ordenadas por total
     top_expense_categories = (
         transactions.filter(transaction_type=Transaction.TransactionType.EXPENSE)
         .values("category__name", "category__color")
         .annotate(total=Sum("amount"))
-        .order_by("-total")[:5]
+        .order_by("-total")
     )
 
     return Response(

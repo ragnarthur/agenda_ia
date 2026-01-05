@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { format, subMonths } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -14,6 +14,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Sector,
 } from "recharts"
 import {
   ArrowDownRight,
@@ -35,6 +36,14 @@ import { financeApi, aiApi } from "../lib/api"
 import { formatCurrency } from "../lib/utils"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../components/ui/dialog"
 import { Progress } from "../components/ui/progress"
 import { PageHeader } from "../components/ui/page-header"
 import { Skeleton } from "../components/ui/skeleton"
@@ -133,6 +142,92 @@ export function DashboardPage() {
     }))
   }, [report])
 
+  const totalExpenses = report?.expenses || 0
+  const [activeDashboardPieIndex, setActiveDashboardPieIndex] = useState<number | null>(null)
+  const [activePieIndex, setActivePieIndex] = useState<number | null>(null)
+  const sortedPieData = useMemo(
+    () => [...pieData].sort((a, b) => b.value - a.value),
+    [pieData]
+  )
+  const maxCategoryItems = 5
+  const visiblePieData = sortedPieData.slice(0, maxCategoryItems)
+  const hasPieData = sortedPieData.length > 0
+  const topCategory = sortedPieData[0]
+  const activePieItem =
+    activePieIndex !== null ? sortedPieData[activePieIndex] : null
+  const renderActiveSlice = (props: any) => {
+    const {
+      cx,
+      cy,
+      innerRadius,
+      outerRadius,
+      startAngle,
+      endAngle,
+      fill,
+    } = props
+    return (
+      <g>
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius + 8}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          stroke="rgba(255,255,255,0.8)"
+          strokeWidth={2}
+        />
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={outerRadius + 10}
+          outerRadius={outerRadius + 18}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          opacity={0.25}
+        />
+      </g>
+    )
+  }
+  const renderDashboardActiveSlice = (props: any) => {
+    const {
+      cx,
+      cy,
+      innerRadius,
+      outerRadius,
+      startAngle,
+      endAngle,
+      fill,
+    } = props
+    return (
+      <g>
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius + 12}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          stroke="rgba(255,255,255,0.85)"
+          strokeWidth={2}
+        />
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={outerRadius + 14}
+          outerRadius={outerRadius + 22}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          opacity={0.18}
+        />
+      </g>
+    )
+  }
+
   const activeGoals = goals?.results.slice(0, 3) || []
   const alertedBudgets =
     budgetStatus?.filter((b) => b.alert_reached).slice(0, 3) || []
@@ -164,7 +259,10 @@ export function DashboardPage() {
         title="Dashboard"
         description="Visao geral das suas financas"
         actions={
-          <Button asChild>
+          <Button
+            asChild
+            className="assistant-launch-cta"
+          >
             <Link to="/ai">
               <Sparkles className="mr-2 h-4 w-4" />
               Assistente de Lançamentos
@@ -176,7 +274,7 @@ export function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Receitas */}
-        <div className="group relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card/50 to-card p-5 transition-all hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/5">
+        <div className="dashboard-stat-card group rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card/50 to-card p-5 transition-all hover:border-emerald-500/30 hover:shadow-lg hover:shadow-emerald-500/5">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl transition-all group-hover:bg-emerald-500/20" />
           <div className="relative">
             <div className="flex items-center justify-between">
@@ -207,7 +305,7 @@ export function DashboardPage() {
         </div>
 
         {/* Despesas */}
-        <div className="group relative overflow-hidden rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-card/50 to-card p-5 transition-all hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/5">
+        <div className="dashboard-stat-card group rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-500/10 via-card/50 to-card p-5 transition-all hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/5">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-red-500/10 blur-2xl transition-all group-hover:bg-red-500/20" />
           <div className="relative">
             <div className="flex items-center justify-between">
@@ -238,7 +336,7 @@ export function DashboardPage() {
         </div>
 
         {/* Saldo */}
-        <div className={`group relative overflow-hidden rounded-2xl border p-5 transition-all hover:shadow-lg ${
+        <div className={`dashboard-stat-card group rounded-2xl border p-5 transition-all hover:shadow-lg ${
           (report?.balance || 0) >= 0
             ? "border-primary/20 bg-gradient-to-br from-primary/10 via-card/50 to-card hover:border-primary/30 hover:shadow-primary/5"
             : "border-red-500/20 bg-gradient-to-br from-red-500/10 via-card/50 to-card hover:border-red-500/30 hover:shadow-red-500/5"
@@ -269,7 +367,7 @@ export function DashboardPage() {
         </div>
 
         {/* Transações */}
-        <div className="group relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-card/50 to-card p-5 transition-all hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-500/5">
+        <div className="dashboard-stat-card group rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-card/50 to-card p-5 transition-all hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-500/5">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl transition-all group-hover:bg-amber-500/20" />
           <div className="relative">
             <div className="flex items-center justify-between">
@@ -296,7 +394,7 @@ export function DashboardPage() {
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Fluxo do Mês */}
-        <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 p-6 backdrop-blur-sm">
+        <div className="relative overflow-visible rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 p-6 backdrop-blur-sm transition-all hover:z-20">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
@@ -348,12 +446,14 @@ export function DashboardPage() {
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(222, 20%, 10%)",
-                    border: "1px solid hsl(222, 14%, 20%)",
+                    backgroundColor: "hsl(222, 20%, 16%)",
+                    border: "1px solid hsl(222, 14%, 28%)",
                     borderRadius: "12px",
-                    boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+                    boxShadow: "0 14px 38px rgba(0,0,0,0.35)",
                   }}
-                  labelStyle={{ color: "hsl(210, 24%, 96%)", fontWeight: 600 }}
+                  labelStyle={{ color: "hsl(210, 24%, 98%)", fontWeight: 600 }}
+                  itemStyle={{ color: "hsl(210, 24%, 96%)" }}
+                  wrapperStyle={{ zIndex: 40 }}
                   formatter={(value) => formatCurrency(value as number)}
                 />
                 <Area
@@ -393,109 +493,327 @@ export function DashboardPage() {
 
         {/* Gastos por Categoria */}
         <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 p-6 backdrop-blur-sm">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15">
-              <PiggyBank className="h-5 w-5 text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Gastos por Categoria</h3>
-              <p className="text-xs text-muted-foreground">Distribuição das despesas</p>
-            </div>
-          </div>
-          {pieData.length > 0 ? (
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <ResponsiveContainer width={180} height={180}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={3}
-                      dataKey="value"
-                      strokeWidth={0}
-                    >
-                      {pieData.map((item) => (
-                        <Cell
-                          key={`cell-${item.name}`}
-                          fill={item.color}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(222, 20%, 10%)",
-                        border: "1px solid hsl(222, 14%, 20%)",
-                        borderRadius: "12px",
-                        boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
-                      }}
-                      formatter={(value) => formatCurrency(value as number)}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Centro do gráfico com total */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-xs text-muted-foreground">Total</span>
-                  <span className="text-lg font-bold">{formatCurrency(report?.expenses || 0)}</span>
+          <Dialog>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15">
+                  <PiggyBank className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Gastos por Categoria</h3>
+                  <p className="text-xs text-muted-foreground">Distribuição das despesas</p>
                 </div>
               </div>
-              <div className="flex-1 space-y-3">
-                {pieData.map((item) => {
-                  const percentage = ((item.value / (report?.expenses || 1)) * 100).toFixed(0)
-                  return (
-                    <div key={item.name} className="group">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-3 w-3 rounded-full transition-all"
-                            style={{
-                              backgroundColor: item.color,
-                              boxShadow: `0 0 0 2px var(--background), 0 0 0 4px ${item.color}40`,
-                            }}
+              {hasPieData && (
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-amber-400 hover:text-amber-300">
+                    Ver todas
+                  </Button>
+                </DialogTrigger>
+              )}
+            </div>
+            {pieData.length > 0 ? (
+              <div className="flex items-center gap-6">
+                <div className="pie-chart-overflow relative overflow-visible">
+                  <ResponsiveContainer
+                    width={180}
+                    height={180}
+                    className="overflow-visible"
+                    style={{ overflow: "visible" }}
+                  >
+                    <PieChart style={{ overflow: "visible" }}>
+                      <Pie
+                        data={sortedPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                        strokeWidth={0}
+                        activeIndex={activeDashboardPieIndex ?? undefined}
+                        activeShape={renderDashboardActiveSlice}
+                        onMouseEnter={(_, index) => setActiveDashboardPieIndex(index)}
+                        onMouseLeave={() => setActiveDashboardPieIndex(null)}
+                      >
+                        {sortedPieData.map((item, index) => (
+                          <Cell
+                            key={`cell-${item.name}-${index}`}
+                            fill={item.color}
                           />
-                          <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                            {item.name}
+                        ))}
+                      </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(222, 20%, 16%)",
+                        border: "1px solid hsl(222, 14%, 28%)",
+                        borderRadius: "12px",
+                        boxShadow: "0 14px 38px rgba(0,0,0,0.35)",
+                      }}
+                      labelStyle={{ color: "hsl(210, 24%, 98%)", fontWeight: 600 }}
+                      itemStyle={{ color: "hsl(210, 24%, 96%)" }}
+                      wrapperStyle={{ zIndex: 40 }}
+                      formatter={(value) => formatCurrency(value as number)}
+                    />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Centro do gráfico com total */}
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-xs text-muted-foreground">Total</span>
+                  <span className="text-lg font-bold">{formatCurrency(totalExpenses)}</span>
+                </div>
+                </div>
+                <div className="flex-1 space-y-3">
+                  {visiblePieData.map((item, index) => {
+                    const percentage = totalExpenses
+                      ? (item.value / totalExpenses) * 100
+                      : 0
+                    return (
+                      <div key={`${item.name}-${index}`} className="group">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-3 w-3 rounded-full transition-all"
+                              style={{
+                                backgroundColor: item.color,
+                                boxShadow: `0 0 0 2px var(--background), 0 0 0 4px ${item.color}40`,
+                              }}
+                            />
+                            <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                              {item.name}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {percentage.toFixed(0)}%
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">{percentage}%</span>
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/30 mr-3">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${percentage}%`,
-                              backgroundColor: item.color,
-                            }}
-                          />
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <div className="mr-3 h-1.5 flex-1 overflow-hidden rounded-full bg-muted/30">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.min(percentage, 100)}%`,
+                                backgroundColor: item.color,
+                              }}
+                            />
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums">
+                            {formatCurrency(item.value)}
+                          </span>
                         </div>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {formatCurrency(item.value)}
-                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-[180px] flex-col items-center justify-center text-center">
+                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/20">
+                  <PiggyBank className="h-7 w-7 text-muted-foreground/60" />
+                </div>
+                <p className="font-medium text-muted-foreground">Sem despesas</p>
+                <p className="mt-1 text-sm text-muted-foreground/60">Registre gastos para ver a distribuição</p>
+              </div>
+            )}
+            {hasPieData && (
+              <DialogContent className="w-[92vw] max-w-5xl max-h-[90vh] overflow-y-auto border border-amber-500/30 bg-gradient-to-br from-card/95 via-card/90 to-card/80">
+                <DialogHeader className="border-b border-border/60 pb-4">
+                  <DialogTitle>Distribuição completa por categoria</DialogTitle>
+                  <DialogDescription>
+                    Visualize todas as despesas do mês sem perder detalhes.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Total de despesas
+                          </p>
+                          <p className="mt-2 text-xl font-semibold">
+                            {formatCurrency(totalExpenses)}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
+                          {sortedPieData.length} categorias
+                        </Badge>
+                      </div>
+                      {topCategory ? (
+                        <div className="mt-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Maior gasto
+                          </p>
+                          <p className="mt-2 truncate text-sm font-medium text-foreground">
+                            {topCategory.name}
+                          </p>
+                          <p className="text-sm font-semibold text-amber-400">
+                            {formatCurrency(topCategory.value)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">Sem dados</p>
+                      )}
+                    </div>
+                    <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-card/80 to-card p-4">
+                      <div className="relative">
+                        <ResponsiveContainer width="100%" height={240}>
+                          <PieChart>
+                            <Pie
+                              data={sortedPieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={70}
+                              outerRadius={105}
+                              paddingAngle={3}
+                              dataKey="value"
+                              strokeWidth={0}
+                              activeIndex={activePieIndex ?? undefined}
+                              activeShape={renderActiveSlice}
+                              onMouseEnter={(_, index) => setActivePieIndex(index)}
+                              onMouseLeave={() => setActivePieIndex(null)}
+                            >
+                              {sortedPieData.map((item, index) => (
+                                <Cell
+                                  key={`dialog-cell-${item.name}-${index}`}
+                                  fill={item.color}
+                                  onMouseEnter={() => setActivePieIndex(index)}
+                                  onMouseLeave={() => setActivePieIndex(null)}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(222, 20%, 16%)",
+                                border: "1px solid hsl(222, 14%, 28%)",
+                                borderRadius: "12px",
+                                boxShadow: "0 14px 38px rgba(0,0,0,0.35)",
+                              }}
+                              labelStyle={{ color: "hsl(210, 24%, 98%)", fontWeight: 600 }}
+                              itemStyle={{ color: "hsl(210, 24%, 96%)" }}
+                              wrapperStyle={{ zIndex: 80 }}
+                              formatter={(value) => formatCurrency(value as number)}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-xs text-muted-foreground">Total</span>
+                          <span className="text-lg font-bold">{formatCurrency(totalExpenses)}</span>
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 p-3">
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                          Categoria em foco
+                        </p>
+                        {activePieItem ? (
+                          <>
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor: activePieItem.color,
+                                    boxShadow: `0 0 0 2px var(--background), 0 0 0 6px ${activePieItem.color}33`,
+                                  }}
+                                />
+                                <span className="truncate text-sm font-medium text-foreground">
+                                  {activePieItem.name}
+                                </span>
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/30 bg-amber-500/10 text-amber-200"
+                              >
+                                {totalExpenses
+                                  ? `${((activePieItem.value / totalExpenses) * 100).toFixed(1)}%`
+                                  : "0%"}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm font-semibold tabular-nums text-foreground">
+                              {formatCurrency(activePieItem.value)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Passe o mouse no grafico para destacar uma categoria.
+                          </p>
+                        )}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-[180px] flex-col items-center justify-center text-center">
-              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/20">
-                <PiggyBank className="h-7 w-7 text-muted-foreground/60" />
-              </div>
-              <p className="font-medium text-muted-foreground">Sem despesas</p>
-              <p className="mt-1 text-sm text-muted-foreground/60">Registre gastos para ver a distribuição</p>
-            </div>
-          )}
+                  </div>
+
+                  <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-muted/10 to-transparent p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-semibold">Todas as categorias</p>
+                      <span className="text-xs text-muted-foreground">
+                        Detalhamento completo do mês
+                      </span>
+                    </div>
+                    <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-2 md:max-h-[360px] lg:max-h-[420px]">
+                      {sortedPieData.map((item, index) => {
+                        const percentage = totalExpenses
+                          ? (item.value / totalExpenses) * 100
+                          : 0
+                        const isActive = activePieIndex === index
+                        return (
+                          <div
+                            key={`${item.name}-${index}`}
+                            onMouseEnter={() => setActivePieIndex(index)}
+                            onMouseLeave={() => setActivePieIndex(null)}
+                            className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-all ${
+                              isActive
+                                ? "border-amber-500/50 bg-amber-500/10 shadow-[0_16px_30px_-26px_rgba(245,158,11,0.7)]"
+                                : "border-border/40 bg-muted/5 hover:-translate-y-0.5 hover:border-amber-500/40 hover:bg-muted/10 hover:shadow-[0_12px_26px_-22px_rgba(245,158,11,0.6)]"
+                            }`}
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span
+                                className="h-3 w-3 shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor: item.color,
+                                  boxShadow: `0 0 0 2px var(--background), 0 0 0 6px ${item.color}33`,
+                                }}
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-foreground">
+                                  {item.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {percentage.toFixed(1)}% do total
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold tabular-nums text-foreground">
+                                {formatCurrency(item.value)}
+                              </p>
+                              <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-muted/30">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${Math.min(percentage, 100)}%`,
+                                    backgroundColor: item.color,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            )}
+          </Dialog>
         </div>
       </div>
 
       {/* Bottom Row */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* AI Insights */}
-        <div className="group rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/5 via-card/80 to-card p-6 transition-all hover:border-violet-500/30">
+        <div className="dashboard-stat-card dashboard-stat-card--soft group rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/5 via-card/80 to-card p-6 transition-all hover:border-violet-500/30">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
@@ -554,7 +872,7 @@ export function DashboardPage() {
         </div>
 
         {/* Active Goals */}
-        <div className="group rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-card/80 to-card p-6 transition-all hover:border-emerald-500/30">
+        <div className="dashboard-stat-card dashboard-stat-card--soft group rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-card/80 to-card p-6 transition-all hover:border-emerald-500/30">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15">
@@ -617,7 +935,7 @@ export function DashboardPage() {
         </div>
 
         {/* Budget Alerts */}
-        <div className="group rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-card/80 to-card p-6 transition-all hover:border-amber-500/30">
+        <div className="dashboard-stat-card dashboard-stat-card--soft group rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-card/80 to-card p-6 transition-all hover:border-amber-500/30">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15">
