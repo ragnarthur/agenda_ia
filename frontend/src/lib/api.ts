@@ -87,6 +87,16 @@ api.interceptors.response.use(
   }
 )
 
+// User info type
+export interface UserInfo {
+  id: number
+  username: string
+  email: string
+  first_name: string
+  last_name: string
+  full_name: string
+}
+
 // Auth API
 export const authApi = {
   login: async (username: string, password: string): Promise<AuthTokens> => {
@@ -104,6 +114,11 @@ export const authApi = {
 
   isAuthenticated: (): boolean => {
     return !!getStoredTokens()?.access
+  },
+
+  getCurrentUser: async (): Promise<UserInfo> => {
+    const response = await api.get<UserInfo>("/auth/me/")
+    return response.data
   },
 }
 
@@ -158,15 +173,21 @@ export const financeApi = {
     await api.delete(`/transactions/${id}/`)
   },
 
-  // Categories
+  // Categories (returns all without pagination)
   getCategories: async (
     type?: "INCOME" | "EXPENSE"
   ): Promise<PaginatedResponse<Category>> => {
-    const response = await api.get<PaginatedResponse<Category>>(
+    const response = await api.get<Category[]>(
       "/categories/",
       { params: { type } }
     )
-    return response.data
+    // Wrap in PaginatedResponse format for compatibility
+    return {
+      count: response.data.length,
+      next: null,
+      previous: null,
+      results: response.data,
+    }
   },
 
   createCategory: async (data: Partial<Category>): Promise<Category> => {
@@ -193,7 +214,11 @@ export const financeApi = {
     income: number
     expenses: number
     balance: number
-    top_expense_categories: Array<{ category__name: string; total: number }>
+    top_expense_categories: Array<{
+      category__name: string | null
+      category__color?: string | null
+      total: number
+    }>
     transaction_count: number
   }> => {
     const response = await api.get("/reports/monthly/", { params: { month } })

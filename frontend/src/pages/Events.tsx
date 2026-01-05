@@ -41,7 +41,7 @@ import {
   Ticket,
   Pencil,
   Trash2,
-  Plus,
+  PlusCircle,
 } from "lucide-react"
 
 type EventFormState = {
@@ -92,6 +92,7 @@ export function EventsPage() {
   const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
   const [dateError, setDateError] = useState("")
   const [editDateError, setEditDateError] = useState("")
+  const [createOpen, setCreateOpen] = useState(false)
   const [formData, setFormData] = useState<EventFormState>({
     title: "",
     event_type: "OUTRO",
@@ -149,33 +150,44 @@ export function EventsPage() {
       status: editingEvent.status,
       payment_date: editingEvent.payment_date || "",
       client_name: editingEvent.client_name || "",
-      auto_create_transaction: editingEvent.auto_create_transaction,
+      auto_create_transaction: true,
       notes: editingEvent.notes || "",
     }
     setEditForm(nextForm)
     setEditDateError(getDateError(nextForm))
   }, [dateLimitLabel, editingEvent])
 
+  const resetCreateForm = () => {
+    setFormData({
+      title: "",
+      event_type: "OUTRO",
+      start_date: defaultStartDate,
+      start_time: defaultStartTime,
+      end_date: "",
+      end_time: "",
+      location: "",
+      expected_amount: "",
+      actual_amount: "",
+      status: "PENDENTE",
+      payment_date: "",
+      client_name: "",
+      auto_create_transaction: true,
+      notes: "",
+    })
+    setDateError("")
+  }
+
+  const handleCreateDialogChange = (open: boolean) => {
+    setCreateOpen(open)
+    if (!open) {
+      resetCreateForm()
+    }
+  }
+
   const createEventMutation = useMutation({
     mutationFn: agendaApi.createEvent,
     onSuccess: () => {
-      setFormData({
-        title: "",
-        event_type: "OUTRO",
-        start_date: defaultStartDate,
-        start_time: defaultStartTime,
-        end_date: "",
-        end_time: "",
-        location: "",
-        expected_amount: "",
-        actual_amount: "",
-        status: "PENDENTE",
-        payment_date: "",
-        client_name: "",
-        auto_create_transaction: true,
-        notes: "",
-      })
-      setDateError("")
+      handleCreateDialogChange(false)
       queryClient.invalidateQueries({ queryKey: ["events"] })
     },
   })
@@ -202,7 +214,7 @@ export function EventsPage() {
         status: data.status,
         payment_date: data.payment_date || null,
         client_name: data.client_name || undefined,
-        auto_create_transaction: data.auto_create_transaction,
+        auto_create_transaction: true,
         notes: data.notes || undefined,
       }),
     onSuccess: () => {
@@ -252,7 +264,7 @@ export function EventsPage() {
       status: formData.status,
       payment_date: formData.payment_date || null,
       client_name: formData.client_name || undefined,
-      auto_create_transaction: formData.auto_create_transaction,
+      auto_create_transaction: true,
       notes: formData.notes || undefined,
     })
   }
@@ -271,7 +283,7 @@ export function EventsPage() {
 
     updateEventMutation.mutate({
       id: editingEvent.id,
-      data: { ...editForm },
+      data: { ...editForm, auto_create_transaction: true },
     })
   }
 
@@ -295,212 +307,110 @@ export function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          Agenda
-        </p>
-        <h1 className="text-3xl font-semibold">Eventos</h1>
-        <p className="text-muted-foreground">
-          Aulas, shows e compromissos organizados.
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+            Agenda
+          </p>
+          <h1 className="text-3xl font-semibold">Eventos</h1>
+          <p className="text-muted-foreground">
+            Aulas, shows e compromissos organizados.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => handleCreateDialogChange(true)}
+          className="gap-2 self-start bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600 md:self-auto"
+        >
+          <PlusCircle className="h-4 w-4" />
+          Novo evento
+        </Button>
       </div>
 
-      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card/80 to-card p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-            <Plus className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold">Novo evento</h3>
-            <p className="text-xs text-muted-foreground">
+      <Dialog open={createOpen} onOpenChange={handleCreateDialogChange}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader className="border-b border-border/60 pb-4">
+            <DialogTitle>Novo evento</DialogTitle>
+            <DialogDescription>
               Registre aulas, shows e compromissos financeiros.
-            </p>
-          </div>
-        </div>
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleCreateSubmit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2 md:col-span-2">
-            <Label className="text-muted-foreground">Título</Label>
-            <Input
-              value={formData.title}
-              onChange={(event) =>
-                setFormData((prev) => ({ ...prev, title: event.target.value }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-              placeholder="Ex: Aula de violão"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Tipo</Label>
-            <Select
-              value={formData.event_type}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  event_type: value as EventFormState["event_type"],
-                }))
-              }
-            >
-              <SelectTrigger className={selectTriggerClasses}>
-                <SelectValue className="text-foreground" placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="AULA">Aula</SelectItem>
-                <SelectItem value="SHOW">Show</SelectItem>
-                <SelectItem value="FREELA">Freela</SelectItem>
-                <SelectItem value="OUTRO">Outro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Status</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value) =>
-                setFormData((prev) => {
-                  const nextValues = {
-                    ...prev,
-                    status: value as EventFormState["status"],
-                    actual_amount: value === "PAGO" ? prev.actual_amount : "",
-                    payment_date: value === "PAGO" ? prev.payment_date : "",
-                  }
-                  setDateError(getDateError(nextValues))
-                  return nextValues
-                })
-              }
-            >
-              <SelectTrigger className={selectTriggerClasses}>
-                <SelectValue className="text-foreground" placeholder="Selecione o status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PENDENTE">Pendente</SelectItem>
-                <SelectItem value="PAGO">Pago</SelectItem>
-                <SelectItem value="CANCELADO">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Data início</Label>
-            <Input
-              type="date"
-              value={formData.start_date}
-              onClick={(event) => openNativePicker(event.currentTarget)}
-              onChange={(event) => {
-                const nextValues = {
-                  ...formData,
-                  start_date: event.target.value,
-                }
-                setFormData(nextValues)
-                setDateError(getDateError(nextValues))
-              }}
-              max={maxDate}
-              className="h-11 border-border/50 bg-background/50"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Horário início</Label>
-            <Input
-              type="time"
-              value={formData.start_time}
-              onClick={(event) => openNativePicker(event.currentTarget)}
-              onChange={(event) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  start_time: event.target.value,
-                }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Data fim (opcional)</Label>
-            <Input
-              type="date"
-              value={formData.end_date}
-              onClick={(event) => openNativePicker(event.currentTarget)}
-              onChange={(event) => {
-                const nextValues = {
-                  ...formData,
-                  end_date: event.target.value,
-                  end_time: event.target.value ? formData.end_time : "",
-                }
-                setFormData(nextValues)
-                setDateError(getDateError(nextValues))
-              }}
-              max={maxDate}
-              className="h-11 border-border/50 bg-background/50"
-            />
-          </div>
-
-          {formData.end_date ? (
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Horário fim</Label>
-              <Input
-                type="time"
-                value={formData.end_time}
-                onClick={(event) => openNativePicker(event.currentTarget)}
-                onChange={(event) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    end_time: event.target.value,
-                  }))
-                }
-                className="h-11 border-border/50 bg-background/50"
-              />
-            </div>
-          ) : null}
-
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Valor previsto</Label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="R$ 0,00"
-              value={formData.expected_amount}
-              onChange={(event) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  expected_amount: formatCurrencyInput(event.target.value),
-                }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-            />
-          </div>
-
-          {formData.status === "PAGO" ? (
-            <>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Valor real</Label>
+          <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 via-card/70 to-card/60 p-6 shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]">
+            <form onSubmit={handleCreateSubmit} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-muted-foreground">Título</Label>
                 <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="R$ 0,00"
-                  value={formData.actual_amount}
+                  value={formData.title}
                   onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      actual_amount: formatCurrencyInput(event.target.value),
-                    }))
+                    setFormData((prev) => ({ ...prev, title: event.target.value }))
                   }
                   className="h-11 border-border/50 bg-background/50"
+                  placeholder="Ex: Aula de violão"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-muted-foreground">Data de pagamento</Label>
+                <Label className="text-muted-foreground">Tipo</Label>
+                <Select
+                  value={formData.event_type}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      event_type: value as EventFormState["event_type"],
+                    }))
+                  }
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue className="text-foreground" placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AULA">Aula</SelectItem>
+                    <SelectItem value="SHOW">Show</SelectItem>
+                    <SelectItem value="FREELA">Freela</SelectItem>
+                    <SelectItem value="OUTRO">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) =>
+                    setFormData((prev) => {
+                      const nextValues = {
+                        ...prev,
+                        status: value as EventFormState["status"],
+                        actual_amount: value === "PAGO" ? prev.actual_amount : "",
+                        payment_date: value === "PAGO" ? prev.payment_date : "",
+                      }
+                      setDateError(getDateError(nextValues))
+                      return nextValues
+                    })
+                  }
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue className="text-foreground" placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDENTE">Pendente</SelectItem>
+                    <SelectItem value="PAGO">Pago</SelectItem>
+                    <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Data início</Label>
                 <Input
                   type="date"
-                  value={formData.payment_date}
+                  value={formData.start_date}
                   onClick={(event) => openNativePicker(event.currentTarget)}
                   onChange={(event) => {
                     const nextValues = {
                       ...formData,
-                      payment_date: event.target.value,
+                      start_date: event.target.value,
                     }
                     setFormData(nextValues)
                     setDateError(getDateError(nextValues))
@@ -509,94 +419,190 @@ export function EventsPage() {
                   className="h-11 border-border/50 bg-background/50"
                 />
               </div>
-            </>
-          ) : null}
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Cliente</Label>
-            <Input
-              value={formData.client_name}
-              onChange={(event) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  client_name: event.target.value,
-                }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-              placeholder="Nome do contratante"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Horário início</Label>
+                <Input
+                  type="time"
+                  value={formData.start_time}
+                  onClick={(event) => openNativePicker(event.currentTarget)}
+                  onChange={(event) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      start_time: event.target.value,
+                    }))
+                  }
+                  className="h-11 border-border/50 bg-background/50"
+                />
+              </div>
 
-          <div className="space-y-2 md:col-span-2">
-            <Label className="text-muted-foreground">Local</Label>
-            <Input
-              value={formData.location}
-              onChange={(event) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  location: event.target.value,
-                }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-              placeholder="Endereço ou sala"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Data fim (opcional)</Label>
+                <Input
+                  type="date"
+                  value={formData.end_date}
+                  onClick={(event) => openNativePicker(event.currentTarget)}
+                  onChange={(event) => {
+                    const nextValues = {
+                      ...formData,
+                      end_date: event.target.value,
+                      end_time: event.target.value ? formData.end_time : "",
+                    }
+                    setFormData(nextValues)
+                    setDateError(getDateError(nextValues))
+                  }}
+                  max={maxDate}
+                  className="h-11 border-border/50 bg-background/50"
+                />
+              </div>
 
-          <div className="space-y-2 md:col-span-2 lg:col-span-4">
-            <Label className="text-muted-foreground">Observações</Label>
-            <textarea
-              value={formData.notes}
-              onChange={(event) =>
-                setFormData((prev) => ({ ...prev, notes: event.target.value }))
-              }
-              className="min-h-[88px] w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {dateError ? (
-              <p className="text-xs text-red-400">{dateError}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Datas máximas permitidas: {dateLimitLabel}.
-              </p>
-            )}
-          </div>
+              {formData.end_date ? (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Horário fim</Label>
+                  <Input
+                    type="time"
+                    value={formData.end_time}
+                    onClick={(event) => openNativePicker(event.currentTarget)}
+                    onChange={(event) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        end_time: event.target.value,
+                      }))
+                    }
+                    className="h-11 border-border/50 bg-background/50"
+                  />
+                </div>
+              ) : null}
 
-          <div className="flex flex-col gap-1 md:col-span-2">
-            <div className="flex items-center gap-3">
-            <input
-              id="auto-create-transaction"
-              type="checkbox"
-              checked={formData.auto_create_transaction}
-              onChange={(event) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  auto_create_transaction: event.target.checked,
-                }))
-              }
-              className="h-4 w-4 rounded border-border/60 bg-background text-primary focus:ring-2 focus:ring-primary/30"
-            />
-            <Label
-              htmlFor="auto-create-transaction"
-              className="text-sm text-foreground"
-            >
-              Criar transação automaticamente quando o evento for marcado como pago
-            </Label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Gera uma receita no financeiro usando o valor previsto ou real.
-            </p>
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Valor previsto</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="R$ 0,00"
+                  value={formData.expected_amount}
+                  onChange={(event) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      expected_amount: formatCurrencyInput(event.target.value),
+                    }))
+                  }
+                  className="h-11 border-border/50 bg-background/50"
+                />
+              </div>
 
-          <div className="md:col-span-2 lg:col-span-4 flex justify-end">
-            <Button
-              type="submit"
-              isLoading={createEventMutation.isPending}
-              disabled={!formData.title || !formData.start_date}
-            >
-              Salvar evento
-            </Button>
+              {formData.status === "PAGO" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Valor real</Label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="R$ 0,00"
+                      value={formData.actual_amount}
+                      onChange={(event) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          actual_amount: formatCurrencyInput(event.target.value),
+                        }))
+                      }
+                      className="h-11 border-border/50 bg-background/50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Data de pagamento</Label>
+                    <Input
+                      type="date"
+                      value={formData.payment_date}
+                      onClick={(event) => openNativePicker(event.currentTarget)}
+                      onChange={(event) => {
+                        const nextValues = {
+                          ...formData,
+                          payment_date: event.target.value,
+                        }
+                        setFormData(nextValues)
+                        setDateError(getDateError(nextValues))
+                      }}
+                      max={maxDate}
+                      className="h-11 border-border/50 bg-background/50"
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Cliente</Label>
+                <Input
+                  value={formData.client_name}
+                  onChange={(event) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      client_name: event.target.value,
+                    }))
+                  }
+                  className="h-11 border-border/50 bg-background/50"
+                  placeholder="Nome do contratante"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-muted-foreground">Local</Label>
+                <Input
+                  value={formData.location}
+                  onChange={(event) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      location: event.target.value,
+                    }))
+                  }
+                  className="h-11 border-border/50 bg-background/50"
+                  placeholder="Endereço ou sala"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2 lg:col-span-4">
+                <Label className="text-muted-foreground">Observações</Label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(event) =>
+                    setFormData((prev) => ({ ...prev, notes: event.target.value }))
+                  }
+                  className="min-h-[88px] w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                {dateError ? (
+                  <p className="text-xs text-red-400">{dateError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Datas máximas permitidas: {dateLimitLabel}.
+                  </p>
+                )}
+                <p className="text-xs text-emerald-300">
+                  Ao marcar como pago, a transação é criada automaticamente.
+                </p>
+              </div>
+
+              <DialogFooter className="md:col-span-2 lg:col-span-4 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCreateDialogChange(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={createEventMutation.isPending}
+                  disabled={!formData.title || !formData.start_date}
+                  className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600"
+                >
+                  Salvar evento
+                </Button>
+              </DialogFooter>
+            </form>
           </div>
-        </form>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 p-5 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-4">
@@ -604,14 +610,16 @@ export function EventsPage() {
             <Filter className="h-5 w-5 text-primary" />
           </div>
           <div className="flex items-center gap-3">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Calendar className="h-4 w-4" />
+            </div>
             <span className="text-sm font-medium">Mês:</span>
             <Input
               type="month"
               value={monthFilter}
               onClick={(event) => openNativePicker(event.currentTarget)}
               onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-44 border-border/50 bg-background/50"
+              className="w-52 border-border/50 bg-background/50"
             />
           </div>
           <Badge
@@ -986,32 +994,6 @@ export function EventsPage() {
               )}
             </div>
 
-            <div className="flex flex-col gap-1 md:col-span-2">
-              <div className="flex items-center gap-3">
-                <input
-                  id="edit-auto-create-transaction"
-                  type="checkbox"
-                  checked={editForm.auto_create_transaction}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      auto_create_transaction: event.target.checked,
-                    }))
-                  }
-                  className="h-4 w-4 rounded border-border/60 bg-background text-primary focus:ring-2 focus:ring-primary/30"
-                />
-                <Label
-                  htmlFor="edit-auto-create-transaction"
-                  className="text-sm text-foreground"
-                >
-                  Criar transação automaticamente quando o evento for marcado como pago
-                </Label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Gera uma receita no financeiro usando o valor previsto ou real.
-              </p>
-            </div>
-
             <DialogFooter className="md:col-span-2 lg:col-span-4">
               <Button
                 type="button"
@@ -1024,6 +1006,7 @@ export function EventsPage() {
                 type="submit"
                 isLoading={updateEventMutation.isPending}
                 disabled={!editForm.title || !editForm.start_date}
+                className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600"
               >
                 Salvar alterações
               </Button>

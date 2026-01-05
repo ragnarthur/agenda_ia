@@ -48,7 +48,7 @@ import {
   Wallet,
   Pencil,
   Trash2,
-  Plus,
+  PlusCircle,
 } from "lucide-react"
 
 type TransactionPayload = {
@@ -82,8 +82,7 @@ export function TransactionsPage() {
   const [dateError, setDateError] = useState("")
   const [editDateError, setEditDateError] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
-  const selectTriggerClasses =
-    "h-11 w-full border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20"
+  const selectTriggerClasses = "h-11 w-full"
   const [createForm, setCreateForm] = useState<TransactionFormState>({
     transaction_type: "EXPENSE",
     amount: "",
@@ -299,9 +298,9 @@ export function TransactionsPage() {
         <Button
           type="button"
           onClick={() => handleCreateDialogChange(true)}
-          className="gap-2 self-start md:self-auto"
+          className="gap-2 self-start bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600 md:self-auto"
         >
-          <Plus className="h-4 w-4" />
+          <PlusCircle className="h-4 w-4" />
           Nova transação
         </Button>
       </div>
@@ -511,13 +510,14 @@ export function TransactionsPage() {
                 >
                   Cancelar
                 </Button>
-                <Button
-                  type="submit"
-                  isLoading={createTransactionMutation.isPending}
-                  disabled={!createForm.description || !createForm.amount || !createForm.date}
-                >
-                  Salvar transação
-                </Button>
+              <Button
+                type="submit"
+                isLoading={createTransactionMutation.isPending}
+                disabled={!createForm.description || !createForm.amount || !createForm.date}
+                className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600"
+              >
+                Salvar transação
+              </Button>
               </DialogFooter>
             </form>
           </div>
@@ -538,7 +538,7 @@ export function TransactionsPage() {
               value={monthFilter}
               onClick={(event) => openNativePicker(event.currentTarget)}
               onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-44 border-border/50 bg-background/50"
+              className="w-52 border-border/50 bg-background/50"
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -564,10 +564,15 @@ export function TransactionsPage() {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" asChild className="border-primary/30 text-primary hover:bg-primary/10">
+          <Button
+            variant="glow"
+            size="sm"
+            asChild
+            className="assistant-cta"
+          >
             <Link to="/ai">
               <Sparkles className="mr-1.5 h-4 w-4" />
-              Nova via IA
+              Nova com Assistente
             </Link>
           </Button>
         </div>
@@ -593,12 +598,16 @@ export function TransactionsPage() {
               </div>
               <p className="text-lg font-medium text-muted-foreground">Nenhuma transação encontrada</p>
               <p className="mt-1 text-sm text-muted-foreground/60">
-                Use o IA Copiloto para adicionar transações rapidamente
+                Use o Assistente de Lançamentos para adicionar transações rapidamente
               </p>
-              <Button asChild className="mt-4">
+              <Button
+                asChild
+                variant="glow"
+                className="assistant-cta mt-4"
+              >
                 <Link to="/ai">
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Adicionar via IA
+                  Adicionar com Assistente
                 </Link>
               </Button>
             </div>
@@ -882,6 +891,7 @@ export function TransactionsPage() {
                 type="submit"
                 isLoading={updateTransactionMutation.isPending}
                 disabled={!editForm.description || !editForm.amount || !editForm.date}
+                className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600"
               >
                 Salvar alterações
               </Button>

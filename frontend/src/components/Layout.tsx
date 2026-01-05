@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { useAuth } from "../context/AuthContext"
@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Bell,
+  User,
 } from "lucide-react"
 
 interface LayoutProps {
@@ -24,17 +25,17 @@ interface LayoutProps {
 }
 
 const navItems = [
-  { path: "/", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/ai", label: "Assistente IA", icon: Sparkles, featured: true },
+  { path: "/", label: "Dashboard", icon: LayoutDashboard, secondary: true },
   { path: "/transactions", label: "Transações", icon: Receipt },
+  { path: "/events", label: "Agenda", icon: Calendar },
   { path: "/budgets", label: "Orçamentos", icon: PiggyBank },
   { path: "/goals", label: "Metas", icon: Target },
   { path: "/chat", label: "Chat IA", icon: MessageSquare },
-  { path: "/ai", label: "IA Copiloto", icon: Sparkles },
-  { path: "/events", label: "Agenda", icon: Calendar },
 ]
 
 export function Layout({ children }: LayoutProps) {
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -45,8 +46,14 @@ export function Layout({ children }: LayoutProps) {
     refetchInterval: 60000, // Refresh every minute
   })
 
+  // Close mobile menu on route change
+  const previousPathRef = useRef(location.pathname)
   useEffect(() => {
-    setIsMenuOpen(false)
+    if (previousPathRef.current !== location.pathname) {
+      previousPathRef.current = location.pathname
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsMenuOpen(false)
+    }
   }, [location.pathname])
 
   const handleLogout = () => {
@@ -55,6 +62,20 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const unreadNotifications = unreadCount?.unread_count || 0
+  const displayName = user?.full_name?.trim() || user?.username || user?.email || ""
+  const secondaryName = (() => {
+    if (!user) return ""
+    const normalize = (value?: string | null) =>
+      value ? value.trim().toLowerCase() : ""
+    const candidates = [user.email, user.username].filter(
+      (value): value is string => Boolean(value)
+    )
+    return (
+      candidates.find(
+        (candidate) => normalize(candidate) !== normalize(displayName)
+      ) || ""
+    )
+  })()
 
   return (
     <div className="relative min-h-screen">
@@ -110,7 +131,7 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen w-72 border-r border-border/70 bg-card/90 p-6 backdrop-blur-xl transition-transform md:translate-x-0 ${
+        className={`fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/70 bg-card/90 p-5 backdrop-blur-xl transition-transform md:translate-x-0 ${
           isMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -128,23 +149,110 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Navigation */}
           <nav className="mt-8 flex-1 space-y-1">
-            {navItems.map((item) => {
+            <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground/70 opacity-80 transition-all duration-200 hover:text-foreground/80 hover:opacity-100">
+              Começo
+            </div>
+            {navItems.slice(0, 3).map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
+              const isFeatured = item.featured
+              const isSecondary = item.secondary
               return (
                 <Button
                   key={item.path}
                   asChild
-                  variant={isActive ? "default" : "ghost"}
-                  className={`group relative w-full justify-start gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all before:absolute before:left-1 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-primary/0 before:transition before:duration-200 hover:translate-x-1 hover:shadow-[0_18px_36px_-24px_rgba(45,212,191,0.6)] ${
+                  variant={isActive && !isFeatured ? "default" : "ghost"}
+                  className={`group relative w-full justify-start gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all before:absolute before:left-1 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-primary/0 before:transition before:duration-200 hover:translate-x-1 ${
                     isActive
-                      ? "glow-ring shadow-[0_10px_24px_-20px_rgba(15,23,42,0.35)] before:h-8 before:bg-primary-foreground/80"
-                      : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/15 hover:via-transparent hover:to-transparent hover:ring-1 hover:ring-primary/25 group-hover:before:bg-primary/70 group-hover:before:h-8"
+                      ? isFeatured
+                        ? "border border-violet-500/50 bg-gradient-to-r from-violet-500/35 via-fuchsia-500/25 to-transparent text-white shadow-[0_18px_36px_-24px_rgba(168,85,247,0.75)] before:h-8 before:bg-violet-200/90"
+                        : "glow-ring shadow-[0_10px_24px_-20px_rgba(15,23,42,0.35)] before:h-8 before:bg-primary-foreground/80"
+                      : isFeatured
+                        ? "border border-violet-500/40 bg-gradient-to-r from-violet-500/20 via-fuchsia-500/10 to-transparent text-foreground shadow-[0_16px_32px_-24px_rgba(168,85,247,0.6)] hover:from-violet-500/30 hover:via-fuchsia-500/20 hover:to-transparent hover:shadow-[0_18px_36px_-24px_rgba(168,85,247,0.75)] before:bg-violet-300/80 before:h-8"
+                        : isSecondary
+                          ? "border border-primary/20 bg-primary/5 text-foreground hover:bg-primary/10 hover:border-primary/30 hover:ring-1 hover:ring-primary/20 before:bg-primary/60 before:h-6"
+                          : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/15 hover:via-transparent hover:to-transparent hover:ring-1 hover:ring-primary/25 hover:shadow-[0_18px_36px_-24px_rgba(45,212,191,0.6)] group-hover:before:bg-primary/70 group-hover:before:h-8"
                   }`}
                 >
                   <Link to={item.path}>
                     <Icon className="h-4 w-4" />
                     {item.label}
+                  </Link>
+                </Button>
+              )
+            })}
+
+            <div className="mt-4 border-t border-border/40 px-3 py-3 text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground/70 opacity-80 transition-all duration-200 hover:text-foreground/80 hover:opacity-100">
+              Controle
+            </div>
+            {navItems.slice(3, 6).map((item) => {
+              const Icon = item.icon
+              const isActive = location.pathname === item.path
+              const isFeatured = item.featured
+              const isSecondary = item.secondary
+              return (
+                <Button
+                  key={item.path}
+                  asChild
+                  variant={isActive && !isFeatured ? "default" : "ghost"}
+                  className={`group relative w-full justify-start gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all before:absolute before:left-1 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-primary/0 before:transition before:duration-200 hover:translate-x-1 ${
+                    isActive
+                      ? isFeatured
+                        ? "border border-violet-500/50 bg-gradient-to-r from-violet-500/35 via-fuchsia-500/25 to-transparent text-white shadow-[0_18px_36px_-24px_rgba(168,85,247,0.75)] before:h-8 before:bg-violet-200/90"
+                        : "glow-ring shadow-[0_10px_24px_-20px_rgba(15,23,42,0.35)] before:h-8 before:bg-primary-foreground/80"
+                      : isFeatured
+                        ? "border border-violet-500/40 bg-gradient-to-r from-violet-500/20 via-fuchsia-500/10 to-transparent text-foreground shadow-[0_16px_32px_-24px_rgba(168,85,247,0.6)] hover:from-violet-500/30 hover:via-fuchsia-500/20 hover:to-transparent hover:shadow-[0_18px_36px_-24px_rgba(168,85,247,0.75)] before:bg-violet-300/80 before:h-8"
+                        : isSecondary
+                          ? "border border-primary/30 bg-primary/10 text-foreground shadow-[0_12px_24px_-22px_rgba(45,212,191,0.45)] hover:bg-primary/15 hover:ring-1 hover:ring-primary/30 before:bg-primary/70 before:h-8"
+                          : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/15 hover:via-transparent hover:to-transparent hover:ring-1 hover:ring-primary/25 hover:shadow-[0_18px_36px_-24px_rgba(45,212,191,0.6)] group-hover:before:bg-primary/70 group-hover:before:h-8"
+                  }`}
+                >
+                  <Link to={item.path}>
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                    {isFeatured && (
+                      <span className="ml-auto rounded-full border border-violet-400/40 bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-100">
+                        IA
+                      </span>
+                    )}
+                  </Link>
+                </Button>
+              )
+            })}
+
+            <div className="mt-4 border-t border-border/40 px-3 py-3 text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground/70 opacity-80 transition-all duration-200 hover:text-foreground/80 hover:opacity-100">
+              Extras
+            </div>
+            {navItems.slice(6).map((item) => {
+              const Icon = item.icon
+              const isActive = location.pathname === item.path
+              const isFeatured = item.featured
+              const isSecondary = item.secondary
+              return (
+                <Button
+                  key={item.path}
+                  asChild
+                  variant={isActive && !isFeatured ? "default" : "ghost"}
+                  className={`group relative w-full justify-start gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all before:absolute before:left-1 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-primary/0 before:transition before:duration-200 hover:translate-x-1 ${
+                    isActive
+                      ? isFeatured
+                        ? "border border-violet-500/50 bg-gradient-to-r from-violet-500/35 via-fuchsia-500/25 to-transparent text-white shadow-[0_18px_36px_-24px_rgba(168,85,247,0.75)] before:h-8 before:bg-violet-200/90"
+                        : "glow-ring shadow-[0_10px_24px_-20px_rgba(15,23,42,0.35)] before:h-8 before:bg-primary-foreground/80"
+                      : isFeatured
+                        ? "border border-violet-500/40 bg-gradient-to-r from-violet-500/20 via-fuchsia-500/10 to-transparent text-foreground shadow-[0_16px_32px_-24px_rgba(168,85,247,0.6)] hover:from-violet-500/30 hover:via-fuchsia-500/20 hover:to-transparent hover:shadow-[0_18px_36px_-24px_rgba(168,85,247,0.75)] before:bg-violet-300/80 before:h-8"
+                        : isSecondary
+                          ? "border border-primary/30 bg-primary/10 text-foreground shadow-[0_12px_24px_-22px_rgba(45,212,191,0.45)] hover:bg-primary/15 hover:ring-1 hover:ring-primary/30 before:bg-primary/70 before:h-8"
+                          : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-primary/15 hover:via-transparent hover:to-transparent hover:ring-1 hover:ring-primary/25 hover:shadow-[0_18px_36px_-24px_rgba(45,212,191,0.6)] group-hover:before:bg-primary/70 group-hover:before:h-8"
+                  }`}
+                >
+                  <Link to={item.path}>
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                    {isFeatured && (
+                      <span className="ml-auto rounded-full border border-violet-400/40 bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-100">
+                        IA
+                      </span>
+                    )}
                   </Link>
                 </Button>
               )
@@ -174,10 +282,30 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Footer */}
           <div className="space-y-4">
-            <div className="rounded-xl border border-border/70 bg-card/70 p-4 text-sm text-muted-foreground">
-              Controle financeiro e agenda em um so lugar.
-            </div>
-
+            {user && (
+              <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {displayName}
+                    </p>
+                    <span
+                      className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.45)]"
+                      aria-label="Online"
+                      title="Online"
+                    />
+                  </div>
+                  {secondaryName && (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {secondaryName}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             <Button
               variant="ghost"
               className="group w-full justify-start gap-3 text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
@@ -191,7 +319,7 @@ export function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="min-h-screen px-5 pb-12 pt-6 md:ml-72 md:px-10 md:pt-10">
+      <main className="min-h-screen px-5 pb-12 pt-6 md:ml-56 md:px-10 md:pt-10">
         <div className="page-enter">{children}</div>
       </main>
     </div>

@@ -23,6 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog"
 import { Progress } from "../components/ui/progress"
 import { Skeleton } from "../components/ui/skeleton"
 import {
@@ -71,8 +79,8 @@ export function GoalsPage() {
   const dateLimitLabel = useMemo(() => formatDate(maxDate), [maxDate])
   const [dateError, setDateError] = useState("")
   const [contributionErrors, setContributionErrors] = useState<Record<number, string>>({})
-  const selectTriggerClasses =
-    "h-11 w-full border-border/50 bg-background/50 focus:border-emerald-500/50 focus:ring-emerald-500/20"
+  const [createOpen, setCreateOpen] = useState(false)
+  const selectTriggerClasses = "h-11 w-full"
   const [formData, setFormData] = useState({
     name: "",
     goal_type: "SAVINGS",
@@ -97,16 +105,27 @@ export function GoalsPage() {
         target_date: formData.target_date || null,
       }),
     onSuccess: () => {
-      setFormData({
-        name: "",
-        goal_type: "SAVINGS",
-        target_amount: "",
-        target_date: "",
-      })
-      setDateError("")
+      handleCreateDialogChange(false)
       queryClient.invalidateQueries({ queryKey: ["goals"] })
     },
   })
+
+  const resetCreateForm = () => {
+    setFormData({
+      name: "",
+      goal_type: "SAVINGS",
+      target_amount: "",
+      target_date: "",
+    })
+    setDateError("")
+  }
+
+  const handleCreateDialogChange = (open: boolean) => {
+    setCreateOpen(open)
+    if (!open) {
+      resetCreateForm()
+    }
+  }
 
   const contributeMutation = useMutation({
     mutationFn: (payload: { goalId: number; amount: string; date: string }) =>
@@ -170,14 +189,24 @@ export function GoalsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          Objetivos
-        </p>
-        <h1 className="text-3xl font-semibold">Metas Financeiras</h1>
-        <p className="text-muted-foreground">
-          Defina objetivos e acompanhe o progresso.
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+            Objetivos
+          </p>
+          <h1 className="text-3xl font-semibold">Metas Financeiras</h1>
+          <p className="text-muted-foreground">
+            Defina objetivos e acompanhe o progresso.
+          </p>
+        </div>
+        <Button
+          type="button"
+          onClick={() => handleCreateDialogChange(true)}
+          className="gap-2 self-start bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 md:self-auto"
+        >
+          <PlusCircle className="h-4 w-4" />
+          Nova Meta
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -231,120 +260,133 @@ export function GoalsPage() {
         </div>
       </div>
 
-      {/* New Goal Form */}
-      <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-card/80 to-card p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20">
-            <PlusCircle className="h-5 w-5 text-emerald-400" />
-          </div>
-          <div>
-            <h3 className="font-semibold">Nova Meta</h3>
-            <p className="text-xs text-muted-foreground">Defina um objetivo financeiro para alcançar</p>
-          </div>
-        </div>
+      <Dialog open={createOpen} onOpenChange={handleCreateDialogChange}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader className="border-b border-border/60 pb-4">
+            <DialogTitle>Nova meta</DialogTitle>
+            <DialogDescription>
+              Defina um objetivo financeiro para alcançar.
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-4">
-          <div className="space-y-2 md:col-span-2">
-            <Label className="text-muted-foreground">Nome da Meta</Label>
-            <Input
-              placeholder="Ex: Reserva de emergência"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, name: e.target.value }))
-              }
-              className="h-11 border-border/50 bg-background/50"
-            />
-          </div>
+          <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/80 via-card/70 to-card/60 p-6 shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]">
+            <form onSubmit={handleSubmit} className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2 md:col-span-2">
+                <Label className="text-muted-foreground">
+                  Nome da Meta <span className="text-emerald-300">*</span>
+                </Label>
+                <Input
+                  placeholder="Ex: Reserva de emergência"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  className="h-11 border-border/50 bg-background/50"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Tipo</Label>
-            <Select
-              value={formData.goal_type}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  goal_type: value,
-                }))
-              }
-            >
-              <SelectTrigger className={selectTriggerClasses}>
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(goalTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Tipo <span className="text-emerald-300">*</span>
+                </Label>
+                <Select
+                  value={formData.goal_type}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      goal_type: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className={selectTriggerClasses}>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(goalTypeLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Valor da Meta (R$)</Label>
-            <div className="relative">
-              <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="R$ 0,00"
-                value={formData.target_amount}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    target_amount: formatCurrencyInput(e.target.value),
-                  }))
-                }
-                className="h-11 border-border/50 bg-background/50 pl-10"
-              />
-            </div>
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">
+                  Valor da Meta (R$) <span className="text-emerald-300">*</span>
+                </Label>
+                <div className="relative">
+                  <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="R$ 0,00"
+                    value={formData.target_amount}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        target_amount: formatCurrencyInput(e.target.value),
+                      }))
+                    }
+                    className="h-11 border-border/50 bg-background/50 pl-10"
+                  />
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Data Alvo (opcional)</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="date"
-                value={formData.target_date}
-                onClick={(event) => openNativePicker(event.currentTarget)}
-                onChange={(e) => {
-                  const nextDate = e.target.value
-                  setFormData((prev) => ({
-                    ...prev,
-                    target_date: nextDate,
-                  }))
-                  setDateError(
-                    nextDate && !isDateWithinLimit(nextDate)
-                      ? `Datas devem ser até ${dateLimitLabel}.`
-                      : ""
-                  )
-                }}
-                max={maxDate}
-                className="h-11 border-border/50 bg-background/50 pl-10"
-              />
-            </div>
-            {dateError ? (
-              <p className="text-xs text-red-400">{dateError}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Datas máximas permitidas: {dateLimitLabel}.
-              </p>
-            )}
-          </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Data Alvo (opcional)</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="date"
+                    value={formData.target_date}
+                    onClick={(event) => openNativePicker(event.currentTarget)}
+                    onChange={(e) => {
+                      const nextDate = e.target.value
+                      setFormData((prev) => ({
+                        ...prev,
+                        target_date: nextDate,
+                      }))
+                      setDateError(
+                        nextDate && !isDateWithinLimit(nextDate)
+                          ? `Datas devem ser até ${dateLimitLabel}.`
+                          : ""
+                      )
+                    }}
+                    max={maxDate}
+                    className="h-11 border-border/50 bg-background/50 pl-10"
+                  />
+                </div>
+                {dateError ? (
+                  <p className="text-xs text-red-400">{dateError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Datas máximas permitidas: {dateLimitLabel}.
+                  </p>
+                )}
+              </div>
 
-          <div className="md:col-span-4">
-            <Button
-              type="submit"
-              disabled={createGoalMutation.isPending || !formData.name || !formData.target_amount}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {createGoalMutation.isPending ? "Salvando..." : "Criar Meta"}
-            </Button>
+              <DialogFooter className="md:col-span-2 lg:col-span-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCreateDialogChange(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createGoalMutation.isPending || !formData.name || !formData.target_amount}
+                  className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600"
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  {createGoalMutation.isPending ? "Salvando..." : "Criar Meta"}
+                </Button>
+              </DialogFooter>
+            </form>
           </div>
-        </form>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Goals List */}
       <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 to-card/70 backdrop-blur-sm">
@@ -378,7 +420,7 @@ export function GoalsPage() {
               </div>
               <p className="text-lg font-medium text-muted-foreground">Nenhuma meta cadastrada</p>
               <p className="mt-1 text-sm text-muted-foreground/60">
-                Use o formulário acima para criar sua primeira meta
+                Use o botão Nova Meta para criar sua primeira meta
               </p>
             </div>
           ) : (

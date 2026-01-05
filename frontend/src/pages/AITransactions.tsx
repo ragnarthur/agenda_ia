@@ -120,47 +120,49 @@ export function AITransactionsPage() {
     <div className="space-y-6">
       <div className="space-y-2">
         <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          Copiloto
+          Assistente
         </p>
-        <h1 className="text-3xl font-semibold">IA Copiloto</h1>
+        <h1 className="text-3xl font-semibold text-foreground">
+          Assistente de <span className="text-primary">Lançamentos</span>
+        </h1>
         <p className="text-muted-foreground">
           Transforme texto em transações prontas para confirmar.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card/80 to-card p-6">
+      <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/90 to-card p-6 shadow-[0_8px_32px_-12px_rgba(45,212,191,0.15)]">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-emerald-500/20">
-            <Sparkles className="h-5 w-5 text-primary" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/30 to-emerald-500/20 shadow-lg shadow-primary/20">
+            <Sparkles className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold">Nova transação com IA</h3>
-            <p className="text-xs text-muted-foreground">
-              Descreva a movimentação como você falaria no dia a dia
+            <h3 className="text-lg font-semibold">Nova transação com IA</h3>
+            <p className="text-sm text-muted-foreground">
+              Descreva como você falaria no dia a dia
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-muted-foreground">Descrição</Label>
+            <Label className="text-muted-foreground">O que aconteceu?</Label>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 placeholder="Ex: recebi 500 de cachê no show de sábado"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 disabled={parseMutation.isPending}
-                className="h-11 flex-1 border-border/50 bg-background/50"
+                className="h-12 flex-1 text-base"
               />
               <Button
                 type="submit"
                 disabled={!inputText.trim() || parseMutation.isPending}
-                className="h-11 bg-gradient-to-r from-primary to-emerald-400 text-primary-foreground"
+                className="h-12 min-w-[52px] bg-gradient-to-r from-primary to-emerald-400 text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30"
               >
                 {parseMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  <Send className="h-4 w-4" />
+                  <Send className="h-5 w-5" />
                 )}
               </Button>
             </div>
@@ -382,25 +384,27 @@ export function AITransactionsPage() {
           <div>
             <h3 className="font-semibold">Exemplos de comandos</h3>
             <p className="text-xs text-muted-foreground">
-              Frases que funcionam bem no copiloto
+              Clique para usar como exemplo
             </p>
           </div>
         </div>
-        <div className="grid gap-3 p-5 text-sm text-muted-foreground sm:grid-cols-2">
+        <div className="grid gap-3 p-5 text-sm sm:grid-cols-2">
           {[
-            '"paguei 38,90 em cordas hoje no pix"',
-            '"recebi 500 de cachê do show de sábado"',
-            '"gastei 150 no mercado ontem no cartão"',
-            '"salário de 2500 caiu hoje"',
-            '"uber de 25 reais ontem"',
-            '"pix de 120 da aula de violão"',
+            "paguei 38,90 em cordas hoje no pix",
+            "recebi 500 de cachê do show de sábado",
+            "gastei 150 no mercado ontem",
+            "salário de 2500 caiu hoje",
           ].map((example) => (
-            <div
+            <button
               key={example}
-              className="rounded-xl border border-border/40 bg-muted/5 px-4 py-2"
+              type="button"
+              onClick={() => setInputText(example)}
+              className="group rounded-xl border border-border/40 bg-muted/5 px-4 py-3 text-left text-muted-foreground transition-all duration-200 hover:border-primary/40 hover:bg-primary/5 hover:text-foreground hover:shadow-[0_4px_12px_-4px_rgba(45,212,191,0.3)]"
             >
+              <span className="opacity-50 group-hover:opacity-70">"</span>
               {example}
-            </div>
+              <span className="opacity-50 group-hover:opacity-70">"</span>
+            </button>
           ))}
         </div>
       </div>

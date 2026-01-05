@@ -78,13 +78,14 @@ class AccountViewSet(viewsets.ModelViewSet):
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Return all categories without pagination
 
     def get_queryset(self):
         queryset = Category.objects.filter(user=self.request.user)
         category_type = self.request.query_params.get("type")
         if category_type:
             queryset = queryset.filter(category_type=category_type)
-        return queryset
+        return queryset.order_by("name")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -291,7 +292,7 @@ def monthly_report(request):
     # Top categorias de gasto
     top_expense_categories = (
         transactions.filter(transaction_type=Transaction.TransactionType.EXPENSE)
-        .values("category__name")
+        .values("category__name", "category__color")
         .annotate(total=Sum("amount"))
         .order_by("-total")[:5]
     )

@@ -211,6 +211,53 @@ h3,
   color: hsl(var(--muted-foreground));
 }
 
+.assistant-cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(120deg, #fbbf24, #fde047, #f59e0b);
+  background-size: 220% 220%;
+  animation: assistant-pan 10s ease-in-out infinite;
+  color: #3a2b00;
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  box-shadow: 0 16px 28px -18px rgba(251, 191, 36, 0.5);
+}
+
+.assistant-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  animation: assistant-shine 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes assistant-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes assistant-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;

@@ -66,7 +66,7 @@ export function LoginPage() {
           </div>
           <div className="space-y-4 text-sm text-muted-foreground">
             <div className="panel-muted">
-              Copiloto inteligente para sugerir transações.
+              Assistente de Lançamentos para sugerir transações.
             </div>
             <div className="panel-muted">
               Dashboard mensal com saldo, categorias e alertas.

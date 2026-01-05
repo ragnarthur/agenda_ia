@@ -57,8 +57,7 @@ export function BudgetsPage() {
   const maxDate = useMemo(() => `${maxBudgetYear}-12-31`, [])
   const [dateError, setDateError] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
-  const selectTriggerClasses =
-    "h-11 w-full border-border/50 bg-background/50 focus:border-violet-500/50 focus:ring-violet-500/20"
+  const selectTriggerClasses = "h-11 w-full"
   const [formData, setFormData] = useState({
     category: "",
     amount: "",

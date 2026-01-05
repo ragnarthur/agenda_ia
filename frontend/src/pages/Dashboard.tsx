@@ -126,9 +126,10 @@ export function DashboardPage() {
 
   const pieData = useMemo(() => {
     if (!report?.top_expense_categories) return []
-    return report.top_expense_categories.map((cat) => ({
+    return report.top_expense_categories.map((cat, index) => ({
       name: cat.category__name || "Sem categoria",
       value: cat.total,
+      color: cat.category__color || CHART_COLORS[index % CHART_COLORS.length],
     }))
   }, [report])
 
@@ -166,7 +167,7 @@ export function DashboardPage() {
           <Button asChild>
             <Link to="/ai">
               <Sparkles className="mr-2 h-4 w-4" />
-              IA Copiloto
+              Assistente de Lançamentos
             </Link>
           </Button>
         }
@@ -416,10 +417,10 @@ export function DashboardPage() {
                       dataKey="value"
                       strokeWidth={0}
                     >
-                      {pieData.map((_, index) => (
+                      {pieData.map((item) => (
                         <Cell
-                          key={`cell-${index}`}
-                          fill={CHART_COLORS[index % CHART_COLORS.length]}
+                          key={`cell-${item.name}`}
+                          fill={item.color}
                         />
                       ))}
                     </Pie>
@@ -441,7 +442,7 @@ export function DashboardPage() {
                 </div>
               </div>
               <div className="flex-1 space-y-3">
-                {pieData.map((item, index) => {
+                {pieData.map((item) => {
                   const percentage = ((item.value / (report?.expenses || 1)) * 100).toFixed(0)
                   return (
                     <div key={item.name} className="group">
@@ -450,8 +451,8 @@ export function DashboardPage() {
                           <span
                             className="h-3 w-3 rounded-full transition-all"
                             style={{
-                              backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
-                              boxShadow: `0 0 0 2px var(--background), 0 0 0 4px ${CHART_COLORS[index % CHART_COLORS.length]}40`,
+                              backgroundColor: item.color,
+                              boxShadow: `0 0 0 2px var(--background), 0 0 0 4px ${item.color}40`,
                             }}
                           />
                           <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
@@ -466,7 +467,7 @@ export function DashboardPage() {
                             className="h-full rounded-full transition-all duration-500"
                             style={{
                               width: `${percentage}%`,
-                              backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                              backgroundColor: item.color,
                             }}
                           />
                         </div>
