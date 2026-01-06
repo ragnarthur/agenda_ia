@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useAuth } from "../context/AuthContext"
 import { notificationsApi } from "../lib/api"
 import { Button } from "./ui/button"
+import { Mascot } from "./Mascot"
 import {
   LayoutDashboard,
   Receipt,
@@ -131,24 +132,33 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen w-56 border-r border-border/70 bg-card/90 p-5 backdrop-blur-xl transition-transform md:translate-x-0 ${
+        className={`fixed left-0 top-0 z-40 h-[100dvh] w-56 overflow-y-auto border-r border-border/70 bg-card/90 p-5 backdrop-blur-xl transition-transform md:translate-x-0 ${
           isMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-              <Wallet className="h-5 w-5" />
+          <div className="group flex items-center gap-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-semibold tracking-tight">Agenda</span>
+              <span className="relative text-2xl font-semibold tracking-tight text-violet-400 transition-all duration-300 group-hover:text-violet-300 ia-glow-pulse">
+                IA
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-violet-400/90 shadow-[0_0_10px_rgba(167,139,250,0.7)] transition-all duration-300 group-hover:scale-110 ia-dot-glow"
+                >
+                  <span className="absolute inset-0 rounded-full bg-violet-400/60 animate-ping" />
+                </span>
+              </span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Painel</p>
-              <p className="text-xl font-semibold">Agenda IA</p>
-            </div>
+            <Mascot
+              className="opacity-85 transition-all duration-300 group-hover:opacity-100 group-hover:-translate-y-1 group-hover:scale-[1.04] group-hover:drop-shadow-[0_10px_18px_rgba(45,212,191,0.35)] mascot-pulse-sync"
+              width={128}
+              height={78}
+            />
           </div>
-
           {/* Navigation */}
-          <nav className="mt-8 flex-1 space-y-1">
+          <nav className="mt-4 flex-1 space-y-1">
             <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground/70 opacity-80 transition-all duration-200 hover:text-foreground/80 hover:opacity-100">
               Começo
             </div>
@@ -157,9 +167,8 @@ export function Layout({ children }: LayoutProps) {
               const isActive = location.pathname === item.path
               const isFeatured = item.featured
               const isSecondary = item.secondary
-              return (
+              const button = (
                 <Button
-                  key={item.path}
                   asChild
                   variant={isActive && !isFeatured ? "default" : "ghost"}
                   className={`group relative w-full justify-start gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all before:absolute before:left-1 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-primary/0 before:transition before:duration-200 hover:translate-x-1 ${
@@ -179,6 +188,12 @@ export function Layout({ children }: LayoutProps) {
                     {item.label}
                   </Link>
                 </Button>
+              )
+
+              return (
+                <div key={item.path}>
+                  {button}
+                </div>
               )
             })}
 
